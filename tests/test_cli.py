@@ -163,13 +163,16 @@ def test_cli_generate_bga():
 
 
 def test_main_help():
-    """main() with sys.argv containing just the script name should return 0."""
-    import sys
+    """main() with --help should print help and return 0."""
+    import sys, io
     old_argv = sys.argv
-    sys.argv = ["kicad-mil-fpgen"]
+    old_stdout = sys.stdout
+    sys.argv = ["kicad-mil-fpgen", "--help"]
+    sys.stdout = io.StringIO()
     try:
         from kicad_mil_fpgen.__main__ import main
-        rc = main()
-        assert rc == 0
+        with pytest.raises(SystemExit):
+            main()
     finally:
         sys.argv = old_argv
+        sys.stdout = old_stdout

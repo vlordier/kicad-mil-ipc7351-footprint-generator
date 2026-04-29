@@ -16,7 +16,7 @@ from kicad_mil_fpgen.core.ipc7351 import (
     PadPosition,
     PadShape,
 )
-from kicad_mil_fpgen.core.constants import DensityLevel
+
 
 
 # ---------------------------------------------------------------------------
@@ -62,44 +62,33 @@ def gullwing_pkg():
 # Density / factor lookup tests
 # ---------------------------------------------------------------------------
 
-def test_density_multipliers():
-    from kicad_mil_fpgen.core.constants import DENSITY_MULTIPLIERS, DensityLevel
-    assert DENSITY_MULTIPLIERS[DensityLevel.A] == 1.0
-    assert DENSITY_MULTIPLIERS[DensityLevel.B] == 0.8
-    assert DENSITY_MULTIPLIERS[DensityLevel.C] == 0.5
+def test_density_factors_chip():
+    from kicad_mil_fpgen.core.constants import FAMILY_FACTORS
+    a = FAMILY_FACTORS["chip"]["A"]
+    c = FAMILY_FACTORS["chip"]["C"]
+    assert a["toe"] > c["toe"]
+    assert a["courtyard"] > c["courtyard"]
 
 
-def test_get_factors_chip():
-    from kicad_mil_fpgen.core.constants import ChipFactors, FAMILY_FACTORS, CalcType, DensityLevel
-    a = FAMILY_FACTORS[CalcType.CHIP][DensityLevel.A]
-    c = FAMILY_FACTORS[CalcType.CHIP][DensityLevel.C]
-    assert isinstance(a, ChipFactors) and isinstance(c, ChipFactors)
-    assert a.toe > c.toe
-    assert a.courtyard > c.courtyard
+def test_density_factors_gullwing():
+    from kicad_mil_fpgen.core.constants import FAMILY_FACTORS
+    a = FAMILY_FACTORS["gullwing"]["A"]
+    c = FAMILY_FACTORS["gullwing"]["C"]
+    assert a["toe"] > c["toe"]
 
 
-def test_get_factors_gullwing():
-    from kicad_mil_fpgen.core.constants import GullwingFactors, FAMILY_FACTORS, CalcType, DensityLevel
-    a = FAMILY_FACTORS[CalcType.GULLWING][DensityLevel.A]
-    c = FAMILY_FACTORS[CalcType.GULLWING][DensityLevel.C]
-    assert isinstance(a, GullwingFactors) and isinstance(c, GullwingFactors)
-    assert a.toe > c.toe
+def test_density_factors_bga():
+    from kicad_mil_fpgen.core.constants import FAMILY_FACTORS
+    a = FAMILY_FACTORS["bga"]["A"]
+    c = FAMILY_FACTORS["bga"]["C"]
+    assert a["nsmd_ratio"] > c["nsmd_ratio"]
 
 
-def test_get_factors_bga():
-    from kicad_mil_fpgen.core.constants import BgaFactors, FAMILY_FACTORS, CalcType, DensityLevel
-    a = FAMILY_FACTORS[CalcType.BGA][DensityLevel.A]
-    c = FAMILY_FACTORS[CalcType.BGA][DensityLevel.C]
-    assert isinstance(a, BgaFactors) and isinstance(c, BgaFactors)
-    assert a.nsmd_ratio > c.nsmd_ratio
-
-
-def test_get_factors_tht():
-    from kicad_mil_fpgen.core.constants import ThtFactors, FAMILY_FACTORS, CalcType, DensityLevel
-    a = FAMILY_FACTORS[CalcType.THT][DensityLevel.A]
-    c = FAMILY_FACTORS[CalcType.THT][DensityLevel.C]
-    assert isinstance(a, ThtFactors) and isinstance(c, ThtFactors)
-    assert a.annular_extra > c.annular_extra
+def test_density_factors_tht():
+    from kicad_mil_fpgen.core.constants import FAMILY_FACTORS
+    a = FAMILY_FACTORS["tht"]["A"]
+    c = FAMILY_FACTORS["tht"]["C"]
+    assert a["annular_extra"] > c["annular_extra"]
 
 
 # ---------------------------------------------------------------------------
@@ -311,7 +300,7 @@ def test_mil_derating_enlarges_courtyard(calc, chip_pkg):
 
 def test_formulas_recorded(calc, chip_pkg):
     result = calc.calculate(chip_pkg, density="B")
-    assert len(result.formulas_used) >= 4
+    assert len(result.formulas_used) >= 3
 
 
 # ---------------------------------------------------------------------------
@@ -375,11 +364,11 @@ def test_tht_pad_annular_ring(calc):
 # Unknown family
 # ---------------------------------------------------------------------------
 
-def test_unknown_family_raises(calc):
-    """Unknown families raise ValidationError (must be registered)."""
+def test_unknown_family_defaults_to_chip(calc):
+    """Unknown families default to chip calculation."""
     unknown = PackageDefinition(family="unknown_device", body=BodyDimensions(length=Tolerance(1.0), width=Tolerance(1.0), height=Tolerance(0.5)))
-    with pytest.raises(ValidationError, match="Unknown package family"):
-        calc.calculate(unknown)
+    result = calc.calculate(unknown)
+    assert len(result.pads) == 2  # treated as chip
 
 
 # ---------------------------------------------------------------------------

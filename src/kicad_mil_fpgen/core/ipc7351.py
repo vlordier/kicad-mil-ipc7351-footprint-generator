@@ -10,15 +10,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
-from .tolerances import (
-    Tolerance,
-    ToleranceStackResult,
-)
+from .tolerances import Tolerance, ToleranceStackResult
 from .padstack import PadShape
-from .constants import (
-    CalcType,
-    FAMILY_TO_CALC_TYPE,
-)
+from .constants import FAMILY_KEY_MAP
 
 
 # ---------------------------------------------------------------------------
@@ -95,8 +89,8 @@ class PackageDefinition:
             raise ValidationError(f"Ball count must be non-negative, got {self.ball_count}")
 
     @property
-    def calc_type(self) -> CalcType:
-        return FAMILY_TO_CALC_TYPE.get(self.family.lower().strip(), CalcType.CHIP)
+    def calc_type(self) -> str:
+        return FAMILY_KEY_MAP.get(self.family.lower().strip(), "chip")
 
 
 @dataclass

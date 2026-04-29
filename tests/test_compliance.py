@@ -10,15 +10,9 @@ from kicad_mil_fpgen.core.calculator import FootprintCalculator
 from kicad_mil_fpgen.core.ipc7351 import PackageDefinition, BodyDimensions, LeadDimensions, Tolerance
 from kicad_mil_fpgen.core.constants import (
     FAMILY_FACTORS,
-    CalcType,
-    DensityLevel,
-    MIL_DERATING_PAD_INCREMENT,
-    ChipFactors,
-    GullwingFactors,
-    BgaFactors,
-    ThtFactors,
+    MIL_PAD_INCREMENT,
 )
-from .conftest import make_chip_pkg, make_gullwing_pkg
+from .conftest import make_chip_pkg
 
 
 # ===================================================================
@@ -32,63 +26,63 @@ class TestIPC7351Formulas:
         """Chip pad_width = body_width + 2*side_expansion."""
         pkg = make_chip_pkg(length=3.2, width=1.6)
         result = calc.calculate(pkg, density="B")
-        f = FAMILY_FACTORS[CalcType.CHIP][DensityLevel.B]
-        assert isinstance(f, ChipFactors)
-        expected = 1.6 + 2 * f.side
+        f = FAMILY_FACTORS["chip"]["B"]
+        
+        expected = 1.6 + 2 * f["side"]
         assert abs(result.pads[0].width - expected) < 1e-9
 
     def test_chip_pad_height_formula(self, calc):
         """Chip pad_height = body_length + toe + heel."""
         pkg = make_chip_pkg(length=3.2, width=1.6)
         result = calc.calculate(pkg, density="B")
-        f = FAMILY_FACTORS[CalcType.CHIP][DensityLevel.B]
-        assert isinstance(f, ChipFactors)
-        expected = 3.2 + f.toe + f.heel
+        f = FAMILY_FACTORS["chip"]["B"]
+        
+        expected = 3.2 + f["toe"] + f["heel"]
         assert abs(result.pads[0].height - expected) < 1e-9
 
     def test_chip_pad_center_formula(self, calc):
         """Chip pad_center_x = body_length/2 + (toe - heel)/2."""
         pkg = make_chip_pkg(length=3.2, width=1.6)
         result = calc.calculate(pkg, density="B")
-        f = FAMILY_FACTORS[CalcType.CHIP][DensityLevel.B]
-        assert isinstance(f, ChipFactors)
-        expected = 3.2 / 2 + (f.toe - f.heel) / 2
+        f = FAMILY_FACTORS["chip"]["B"]
+        
+        expected = 3.2 / 2 + (f["toe"] - f["heel"]) / 2
         assert abs(result.pads[1].position.x - expected) < 1e-9
         assert abs(result.pads[0].position.x + expected) < 1e-9
 
     def test_gullwing_pad_width_formula(self, calc):
         """Gullwing pad_width = lead_width + 2*side_expansion."""
-        pkg = make_gullwing_pkg(lead_w=0.4)
+        pkg = PackageDefinition(family='soic', body=BodyDimensions(length=Tolerance(5.0), width=Tolerance(4.0), height=Tolerance(1.5)), leads=LeadDimensions(width=Tolerance(0.4), length=Tolerance(1.0), pitch=Tolerance(1.27), count=8))
         result = calc.calculate(pkg, density="B")
-        f = FAMILY_FACTORS[CalcType.GULLWING][DensityLevel.B]
-        assert isinstance(f, GullwingFactors)
-        expected = 0.4 + 2 * f.side
+        f = FAMILY_FACTORS["gullwing"]["B"]
+        
+        expected = 0.4 + 2 * f["side"]
         assert abs(result.pads[0].width - expected) < 1e-9
 
     def test_gullwing_pad_height_formula(self, calc):
         """Gullwing pad_height = lead_length + toe + heel."""
-        pkg = make_gullwing_pkg(lead_l=1.0)
+        pkg = PackageDefinition(family='soic', body=BodyDimensions(length=Tolerance(5.0), width=Tolerance(4.0), height=Tolerance(1.5)), leads=LeadDimensions(width=Tolerance(0.4), length=Tolerance(1.0), pitch=Tolerance(1.27), count=8))
         result = calc.calculate(pkg, density="B")
-        f = FAMILY_FACTORS[CalcType.GULLWING][DensityLevel.B]
-        assert isinstance(f, GullwingFactors)
-        expected = 1.0 + f.toe + f.heel
+        f = FAMILY_FACTORS["gullwing"]["B"]
+        
+        expected = 1.0 + f["toe"] + f["heel"]
         assert abs(result.pads[0].height - expected) < 1e-9
 
     def test_bga_pad_diameter_formula(self, calc, bga_pkg):
         """BGA pad_diameter = ball_diameter * nsmd_ratio."""
         result = calc.calculate(bga_pkg, density="B")
-        f = FAMILY_FACTORS[CalcType.BGA][DensityLevel.B]
-        assert isinstance(f, BgaFactors)
-        expected = 0.5 * f.nsmd_ratio
+        f = FAMILY_FACTORS["bga"]["B"]
+        
+        expected = 0.5 * f["nsmd_ratio"]
         assert abs(result.pads[0].width - expected) < 1e-9
 
     def test_tht_pad_diameter_formula(self, calc, tht_pkg):
         """THT pad_diameter = lead_diameter + 2*(annular_extra + base)."""
         from kicad_mil_fpgen.core.constants import ANNULAR_RING_BASE
         result = calc.calculate(tht_pkg, density="B")
-        f = FAMILY_FACTORS[CalcType.THT][DensityLevel.B]
-        assert isinstance(f, ThtFactors)
-        annulus = f.annular_extra + ANNULAR_RING_BASE
+        f = FAMILY_FACTORS["tht"]["B"]
+        
+        annulus = f["annular_extra"] + ANNULAR_RING_BASE
         expected = 0.6 + 2 * annulus
         assert abs(result.pads[0].width - expected) < 1e-9
 
@@ -117,7 +111,7 @@ class TestDensityMonotonicity:
             assert vals[0] >= vals[1] >= vals[2], f"Courtyard {side} not monotonic: {vals}"
 
     def test_gullwing_monotonic(self, calc):
-        self._check_monotonic(calc, make_gullwing_pkg())
+        self._check_monotonic(calc, PackageDefinition(family="soic", body=BodyDimensions(length=Tolerance(5.0), width=Tolerance(4.0), height=Tolerance(1.5)), leads=LeadDimensions(width=Tolerance(0.4), length=Tolerance(1.0), pitch=Tolerance(1.27), count=8)))
 
     def test_bga_monotonic(self, calc, bga_pkg):
         self._check_monotonic(calc, bga_pkg)
@@ -142,7 +136,7 @@ class TestSymmetry:
         assert left.height == right.height
 
     def test_gullwing_symmetry(self, calc):
-        result = calc.calculate(make_gullwing_pkg(), density="B")
+        result = calc.calculate(PackageDefinition(family="soic", body=BodyDimensions(length=Tolerance(5.0), width=Tolerance(4.0), height=Tolerance(1.5)), leads=LeadDimensions(width=Tolerance(0.4), length=Tolerance(1.0), pitch=Tolerance(1.27), count=8)), density="B")
         for i in range(0, len(result.pads), 2):
             left, right = result.pads[i], result.pads[i + 1]
             assert left.position.x == -right.position.x
@@ -203,8 +197,8 @@ class TestMilDerating:
         result = calc.calculate(chip_pkg, density="B")
         mil = calc.apply_mil_derating(result)
         for i, pad in enumerate(mil.pads):
-            assert abs(pad.width - result.pads[i].width - MIL_DERATING_PAD_INCREMENT) < 1e-9
-            assert abs(pad.height - result.pads[i].height - MIL_DERATING_PAD_INCREMENT) < 1e-9
+            assert abs(pad.width - result.pads[i].width - MIL_PAD_INCREMENT) < 1e-9
+            assert abs(pad.height - result.pads[i].height - MIL_PAD_INCREMENT) < 1e-9
 
     def test_mil_preserves_symmetry(self, calc, chip_pkg):
         result = calc.calculate(chip_pkg, density="A")
@@ -243,7 +237,9 @@ class TestPadCountInvariants:
     def test_gullwing_leads_even(self, calc):
         """8-lead SOIC has 8 pads, 14-lead has 14, etc."""
         for count in [8, 14, 16, 20, 24, 28]:
-            pkg = make_gullwing_pkg(lead_count=count)
+            pkg = PackageDefinition(family="soic",
+                body=BodyDimensions(length=Tolerance(5.0), width=Tolerance(4.0), height=Tolerance(1.5)),
+                leads=LeadDimensions(width=Tolerance(0.4), length=Tolerance(1.0), pitch=Tolerance(1.27), count=count))
             r = calc.calculate(pkg, density="B")
             assert len(r.pads) == count
 
