@@ -1,79 +1,75 @@
 # kicad-mil-ipc7351-footprint-generator
 
-**CLI tool for generating IPC-7351C KiCad footprints — adds +0.05mm to every pad for MIL-STD vibration resistance.**
+**CLI tool that adds MIL-grade pad margins (+0.05mm) to IPC-7351C KiCad footprints.**
 
 ![Python](https://img.shields.io/badge/Python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-GPLv3-blue.svg)
 ![Tests](https://img.shields.io/badge/tests-142%20passing-brightgreen)
 
-## What this does differently
+## What's the MIL value?
 
-| Feature | KiCad built-in | This tool |
-|---------|---------------|-----------|
-| **MIL derating** (`--mil`) | None | +0.05mm pads, +0.1mm courtyard |
-| **Density A** (largest pads) | No | All families: 25% wider pads vs density C |
-| **QFN thermal pad** | Manual | Auto-generated, 70% of body size |
-| **THT dual-row** | Manual | DIP gets symmetric pads both sides |
-| **Ball grid** | Per-part | N×N from body dimensions + ball count |
-| **Batch CSV** | No | Generate 100+ footprints from one file |
-| **Formula audit trail** | No | Every pad dimension recorded with formula used |
+Standard IPC footprints are designed for nominal assembly. For MIL-STD / IPC Class 3 / aerospace, you need:
+
+| Requirement | What this tool does |
+|-------------|-------------------|
+| **Larger pads for vibration** | `--mil` adds +0.05mm to every pad dimension |
+| **Extra courtyard clearance** | `--mil` adds +0.1mm to all courtyard edges |
+| **Density A (maximum material)** | Largest pad geometry for maximum solder joint strength |
+| **Auditable calculations** | Every dimension recorded with formula — include in MIL documentation |
+| **QFN thermal pad** | Auto-generated for QFN/DFN (common in high-rel designs) |
+
+Without `--mil`, you get standard IPC-7351C footprints (nominal). With `--mil`, every pad is 0.05mm larger — a simple, verifiable margin for vibration resistance.
+
+## When this isn't for MIL
+
+This tool also generates standard footprints for any package family. That's just plumbing — the MIL value is the `--mil` flag and Density A.
 
 ## Usage
 
 ```bash
 pip install -e .
 
-# Single footprint
-kicad-mil-fpgen --package chip --body-length 3.2 --body-width 1.6 -o 1206.kicad_mod
+# MIL-grade chip footprint (density A + derating)
+kicad-mil-fpgen --package chip --body-length 3.2 --body-width 1.6 \
+  --density A --mil -o 1206_mil.kicad_mod
 
-# MIL-grade SOIC-8 (adds +0.05mm to every pad)
+# MIL-grade SOIC-8
 kicad-mil-fpgen --package soic --body-length 5.0 --body-width 4.0 \
-  --lead-count 8 --lead-pitch 1.27 --mil -o soic8.kicad_mod
+  --lead-count 8 --lead-pitch 1.27 --density A --mil -o soic8_mil.kicad_mod
 
-# Batch generate from CSV
-cat > parts.csv << EOF
-family,length,width,lead_count,pitch,density,mil
-chip,3.2,1.6,0,0,A,no
-soic,5.0,4.0,8,1.27,B,yes
-chip,1.6,0.8,0,0,C,no
-EOF
+# Standard footprint (no MIL)
+kicad-mil-fpgen --package soic --body-length 5.0 --body-width 4.0 \
+  --lead-count 8 --lead-pitch 1.27 -o soic8.kicad_mod
+
+# Batch from CSV
 kicad-mil-fpgen --batch parts.csv -o ./my_lib
 ```
-
-## Renders (KiCad 10.0.1)
-
-| Chip 1206 MIL | SOIC-8 | DIP-8 | QFN-32 + pad | BGA-256 |
-|:---:|:---:|:---:|:---:|:---:|
-| <img src="docs/images/chip.svg" width="150"> | <img src="docs/images/soic.svg" width="150"> | <img src="docs/images/dip.svg" width="150"> | <img src="docs/images/qfn.svg" width="150"> | <img src="docs/images/bga.svg" width="180"> |
 
 ## Options
 
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--package` | required | chip, soic, tssop, qfp, qfn, dfn, bga, dip, axial, radial |
-| `--body-length` | required | mm |
-| `--body-width` | required | mm |
-| `--density` | B | A (largest pads, MIL preferred), B (nominal), C (least) |
-| `--lead-count` | — | leads/pins (required for soic/qfp/dip) |
-| `--lead-pitch` | — | mm |
-| `--mil` | off | +0.05mm to pads, +0.1mm to courtyard |
+| `--body-length`, `--body-width` | required | mm |
+| `--density` | B | **A** (MIL — largest pads), B (nominal), C (least) |
+| `--mil` | off | **+0.05mm pads, +0.1mm courtyard** |
+| `--lead-count`, `--lead-pitch` | — | for gullwing/THT packages |
+| `--ball-diameter`, `--ball-count` | — | for BGA packages |
 | `--batch` | — | CSV file path |
-| `-o` | auto | Output path or directory for batch |
+| `-o` | auto | Output path or directory |
 
-## Installing
+## Renders (KiCad 10.0.1)
+
+| Chip 1206 MIL (+0.05mm) | SOIC-8 MIL (+0.05mm) | QFN-32 + thermal pad | BGA-256 grid |
+|:---:|:---:|:---:|:---:|
+| <img src="docs/images/chip.svg" width="200"> | <img src="docs/images/soic.svg" width="200"> | <img src="docs/images/qfn.svg" width="200"> | <img src="docs/images/bga.svg" width="250"> |
+
+## Test
 
 ```bash
-pip install -e .            # zero deps beyond numpy
-pip install -e ".[dev]"     # + pytest, hypothesis for tests
+pip install -e ".[dev]"
+pytest tests/ -q    # 142 passed, validated against KiCad 10.0.1 pcbnew
 ```
-
-## Tests
-
-```bash
-pytest tests/ -q    # 142 passed
-```
-
-All footprints validated against KiCad 10.0.1 pcbnew — every file loads, parses, and renders.
 
 ## License
 
