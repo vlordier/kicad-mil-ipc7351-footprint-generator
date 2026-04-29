@@ -25,7 +25,7 @@ from kicad_mil_fpgen.core.ipc7351 import (
 
 @pytest.fixture
 def calc():
-    return IPC7351Calculator(ipc_version="C")
+    return IPC7351Calculator()
 
 
 @pytest.fixture
@@ -69,49 +69,63 @@ def test_density_multiplier(calc):
 
 
 def test_get_factors_chip(calc):
+    from kicad_mil_fpgen.core.constants import ChipFactors
     a = calc.get_factors("chip", "A")
     c = calc.get_factors("chip", "C")
-    assert a["toe"] > c["toe"]
-    assert a["courtyard"] > c["courtyard"]
+    assert isinstance(a, ChipFactors) and isinstance(c, ChipFactors)
+    assert a.toe > c.toe
+    assert a.courtyard > c.courtyard
 
 
 def test_get_factors_gullwing(calc):
+    from kicad_mil_fpgen.core.constants import GullwingFactors
     a = calc.get_factors("soic", "A")
     c = calc.get_factors("soic", "C")
-    assert a["toe"] > c["toe"]
+    assert isinstance(a, GullwingFactors) and isinstance(c, GullwingFactors)
+    assert a.toe > c.toe
 
 
 def test_get_factors_bga(calc):
+    from kicad_mil_fpgen.core.constants import BgaFactors
     a = calc.get_factors("bga", "A")
     c = calc.get_factors("bga", "C")
-    assert a["nsmd_ratio"] > c["nsmd_ratio"]
+    assert isinstance(a, BgaFactors) and isinstance(c, BgaFactors)
+    assert a.nsmd_ratio > c.nsmd_ratio
 
 
 def test_get_factors_tht(calc):
+    from kicad_mil_fpgen.core.constants import ThtFactors
     a = calc.get_factors("dip", "A")
     c = calc.get_factors("dip", "C")
-    assert a["annular_extra"] > c["annular_extra"]
+    assert isinstance(a, ThtFactors) and isinstance(c, ThtFactors)
+    assert a.annular_extra > c.annular_extra
 
 
 def test_get_factors_unknown_family_defaults_to_chip(calc):
+    from kicad_mil_fpgen.core.constants import ChipFactors
     f = calc.get_factors("fictitious", "B")
-    assert "toe" in f
-    assert "side" in f
+    assert isinstance(f, ChipFactors)
 
 
 def test_get_factors_unknown_density_defaults_to_b(calc):
+    from kicad_mil_fpgen.core.constants import ChipFactors
     f = calc.get_factors("chip", "Z")
-    assert f["toe"] == 0.50  # density B toe
+    assert isinstance(f, ChipFactors)
+    assert f.toe == 0.50
 
 
 def test_get_factors_resistor_maps_to_chip(calc):
+    from kicad_mil_fpgen.core.constants import ChipFactors
     f = calc.get_factors("resistor", "A")
-    assert f["toe"] == 0.60
+    assert isinstance(f, ChipFactors)
+    assert f.toe == 0.60
 
 
 def test_get_factors_inductor_maps_to_chip(calc):
+    from kicad_mil_fpgen.core.constants import ChipFactors
     f = calc.get_factors("inductor", "A")
-    assert f["toe"] == 0.60
+    assert isinstance(f, ChipFactors)
+    assert f.toe == 0.60
 
 
 # ---------------------------------------------------------------------------

@@ -1,18 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Entry point for kicad-mil-fpgen CLI.
-
-Usage:
-    kicad-mil-fpgen                          # Print help
-    kicad-mil-fpgen --package chip --body-length 3.2 --body-width 1.6 --output fp.kicad_mod
-    kicad-mil-fpgen --package soic --body-length 5.0 --body-width 4.0 --lead-count 8 --lead-pitch 1.27 --output fp.kicad_mod
-    kicad-mil-fpgen --version                # Show version
-"""
+"""Entry point for kicad-mil-fpgen CLI."""
 
 import argparse
 import sys
 from pathlib import Path
 
 from . import __version__
+from .core.constants import DensityLevel
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -22,7 +16,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--version", action="version", version=f"kicad-mil-fpgen v{__version__}")
     parser.add_argument("--package", type=str, help="Package family (chip, soic, qfp, bga, dip, ...)")
-    parser.add_argument("--density", type=str, default="B", choices=["A", "B", "C", "USER", "MANUFACTURER"], help="IPC-7351 density level (default: B)")
+    parser.add_argument("--density", type=str, default="B", choices=[e.value for e in DensityLevel], help="IPC-7351 density level (default: B)")
     parser.add_argument("--body-length", type=float, help="Component body length in mm")
     parser.add_argument("--body-width", type=float, help="Component body width in mm")
     parser.add_argument("--body-height", type=float, default=0.5, help="Component body height in mm (default: 0.5)")
@@ -64,7 +58,7 @@ def cli_generate(args: argparse.Namespace) -> int:
         )
 
     try:
-        calc = IPC7351Calculator(ipc_version="C")
+        calc = IPC7351Calculator()
         result = calc.calculate_footprint(pkg, density=args.density)
     except ValidationError as e:
         print(f"Error: {e}", file=sys.stderr)

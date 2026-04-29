@@ -33,7 +33,7 @@ class BatchImporter:
     def __init__(self, output_dir: str | Path, library_name: str = "batch_generated"):
         self.output_dir = Path(output_dir)
         self.library_name = library_name
-        self.calculator = IPC7351Calculator(ipc_version="C")
+        self.calculator = IPC7351Calculator()
 
     def from_csv(self, csv_path: str | Path) -> BatchResult:
         """Read a CSV file and generate footprints for each row.

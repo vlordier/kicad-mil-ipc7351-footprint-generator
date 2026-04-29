@@ -28,7 +28,7 @@ from kicad_mil_fpgen.export.kicad_mod import KiCadModExporter
 
 @pytest.fixture
 def chip_result():
-    calc = IPC7351Calculator(ipc_version="C")
+    calc = IPC7351Calculator()
     pkg = PackageDefinition(
         family="chip",
         body=BodyDimensions(length=Tolerance(3.2, 0.1, 0.1), width=Tolerance(1.6, 0.1, 0.1), height=Tolerance(0.55, 0.1, 0.1)),
@@ -195,7 +195,7 @@ def test_export_tht_layers():
         body=BodyDimensions(length=Tolerance(20.0), width=Tolerance(7.0), height=Tolerance(3.5)),
         leads=LeadDimensions(width=Tolerance(0.6), length=Tolerance(2.0), pitch=Tolerance(2.54), count=8),
     )
-    calc = IPC7351Calculator(ipc_version="C")
+    calc = IPC7351Calculator()
     result = calc.calculate_footprint(pkg, density="B")
     output = KiCadModExporter(result).to_string()
     # THT should have F.Cu only (no F.Paste/F.Mask)
@@ -208,7 +208,7 @@ def test_export_tht_layers():
 # ---------------------------------------------------------------------------
 
 def test_export_all_densities():
-    calc = IPC7351Calculator(ipc_version="C")
+    calc = IPC7351Calculator()
     pkg = PackageDefinition(
         family="chip",
         body=BodyDimensions(length=Tolerance(3.2), width=Tolerance(1.6), height=Tolerance(0.55)),
