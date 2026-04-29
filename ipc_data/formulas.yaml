@@ -1,0 +1,49 @@
+# IPC-7351B/C Formula Reference
+# All formulas used by the calculation engine, stored for transparency and auditability.
+
+ipc_version: 7351C
+
+chip_resistor_capacitor:
+  pad_width: "W = B + 2S"
+  pad_height: "L = T + H + Toe"
+  z_max: "Z = L + 2Toe"
+  g_min: "G = B - 2S"
+  description: >
+    S = side expansion, T = toe, H = heel
+    B = body width, L = body length
+
+gull_wing:
+  pad_width: "W = LW + 2S"
+  pad_height: "L = LL + Toe + Heel"
+  z_max: "Z = CL + 2Toe"
+  g_min: "GW = G - 2S"
+  description: >
+    LW = lead width, LL = lead length
+    S = side expansion, CL = component length
+
+bga:
+  pad_diameter_nsmd: "PD = BD × 0.85"
+  pad_diameter_smd: "PD = BD × 0.90"
+  mask_opening_nsmd: "MO = PD + 0.10"
+  mask_opening_smd: "MO = PD + 0.05"
+  description: >
+    BD = ball diameter, PD = pad diameter
+    NSMD = Non-Solder Mask Defined
+    SMD = Solder Mask Defined
+
+through_hole:
+  pad_diameter: "PD = LD + 2AR"
+  annular_ring: "AR = min_annular_ring (per IPC-6012 class)"
+  description: >
+    LD = lead diameter, AR = annular ring
+
+tolerance:
+  rss: "T_total = sqrt(T1² + T2² + ... + Tn²)"
+  worst_case: "T_total = T1 + T2 + ... + Tn"
+  min_max: "T_min = sum(min_i), T_max = sum(max_i)"
+  description: "RSS recommended for statistical tolerancing, worst-case for critical MIL paths."
+
+courtyard:
+  assembly: "CY = Body + 2 × CY_exp"
+  silkscreen: "F.SilkS outside courtyard by 0.1mm min"
+  description: "Density A: 0.5mm, B: 0.25mm, C: 0.1mm expansion"

@@ -1,0 +1,12 @@
+# Default User Profile
+name: "Default"
+description: "Standard IPC-7351C footprint generation with nominal settings"
+density: "B"
+ipc_version: "C"
+
+settings:
+  courtyard_expansion: 0.25
+  tolerance_method: "min_max"
+  mask_expansion: 0.075
+  paste_reduction: 0.0
+  generate_report: false

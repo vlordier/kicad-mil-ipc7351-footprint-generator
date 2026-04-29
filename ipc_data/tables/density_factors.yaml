@@ -1,0 +1,38 @@
+# IPC-7351C Table 3-1: Density Level Factors
+# All values in mm
+
+ipc_version: "C"
+
+density_levels:
+  A:
+    name: "Most (Maximum)"
+    description: "Largest footprint — preferred for MIL/high-reliability. Provides maximum solder joint strength."
+    factors:
+      heel: 0.25
+      toe: 0.75
+      side: 0.25
+      courtyard: 0.50
+      annular_ring_extra: 0.10
+      solder_fillet_min: 0.30
+
+  B:
+    name: "Nominal (Median)"
+    description: "Standard IPC footprint — recommended for general-purpose designs."
+    factors:
+      heel: 0.15
+      toe: 0.55
+      side: 0.15
+      courtyard: 0.25
+      annular_ring_extra: 0.05
+      solder_fillet_min: 0.20
+
+  C:
+    name: "Least (Minimum)"
+    description: "Smallest footprint — for high-density designs with controlled processes."
+    factors:
+      heel: 0.05
+      toe: 0.35
+      side: 0.05
+      courtyard: 0.10
+      annular_ring_extra: 0.025
+      solder_fillet_min: 0.10

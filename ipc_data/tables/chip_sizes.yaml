@@ -1,0 +1,75 @@
+# IPC-7351C Standard Chip Package Dimensions
+# Nominal body dimensions for common chip packages (mm)
+
+ipc_version: "C"
+
+chip_sizes:
+  01005:
+    code: "01005"
+    body_length: 0.40
+    body_width: 0.20
+    body_height: 0.13
+    units: mm
+
+  0201:
+    code: "0201"
+    body_length: 0.60
+    body_width: 0.30
+    body_height: 0.23
+    units: mm
+
+  0402:
+    code: "0402"
+    body_length: 1.00
+    body_width: 0.50
+    body_height: 0.35
+    units: mm
+
+  0603:
+    code: "0603"
+    body_length: 1.60
+    body_width: 0.80
+    body_height: 0.45
+    units: mm
+
+  0805:
+    code: "0805"
+    body_length: 2.00
+    body_width: 1.25
+    body_height: 0.50
+    units: mm
+
+  1206:
+    code: "1206"
+    body_length: 3.20
+    body_width: 1.60
+    body_height: 0.55
+    units: mm
+
+  1210:
+    code: "1210"
+    body_length: 3.20
+    body_width: 2.50
+    body_height: 0.55
+    units: mm
+
+  1812:
+    code: "1812"
+    body_length: 4.50
+    body_width: 3.20
+    body_height: 0.55
+    units: mm
+
+  2010:
+    code: "2010"
+    body_length: 5.00
+    body_width: 2.50
+    body_height: 0.55
+    units: mm
+
+  2512:
+    code: "2512"
+    body_length: 6.30
+    body_width: 3.20
+    body_height: 0.55
+    units: mm

@@ -1,0 +1,52 @@
+[project]
+name = "kicad-mil-ipc7351-footprint-generator"
+version = "0.1.0"
+description = "Open-source IPC-7351C MIL-grade footprint generator for KiCad — the free alternative to PCB Library Expert"
+authors = [
+    { name = "KiCad MIL IPC7351 Contributors" },
+]
+license = { text = "GPL-3.0-or-later" }
+requires-python = ">=3.11"
+dependencies = [
+    "PySide6>=6.7.0",
+    "numpy>=1.26",
+    "pandas>=2.2",
+    "PyYAML>=6.0",
+    "reportlab>=4.2",
+    "matplotlib>=3.8",
+]
+
+[project.scripts]
+kicad-mil-fpgen = "kicad_mil_fpgen.__main__:main"
+
+[project.optional-dependencies]
+dev = [
+    "black>=24.0",
+    "pytest>=8.0",
+    "mypy>=1.8",
+    "pyinstaller>=6.0",
+]
+docs = [
+    "sphinx>=7.0",
+    "sphinx-rtd-theme>=2.0",
+]
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
