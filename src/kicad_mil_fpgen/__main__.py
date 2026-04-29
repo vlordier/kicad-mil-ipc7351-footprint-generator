@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Entry point for kicad-mil-fpgen CLI and GUI."""
+"""Entry point for kicad-mil-fpgen CLI."""
 
 import argparse
 import sys
@@ -11,19 +11,21 @@ from . import __version__
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="kicad-mil-fpgen", description="IPC-7351C MIL-grade footprint generator for KiCad")
     p.add_argument("--version", action="version", version=f"kicad-mil-fpgen v{__version__}")
-    p.add_argument("--package", type=str, help="Package family (chip, soic, bga, dip, ...)")
-    p.add_argument("--density", type=str, default="B", choices=["A", "B", "C"], help="Density (default: B)")
-    p.add_argument("--body-length", type=float, help="Body length in mm")
-    p.add_argument("--body-width", type=float, help="Body width in mm")
-    p.add_argument("--body-height", type=float, default=0.5, help="Body height (default: 0.5)")
+    p.add_argument("--package", type=str, required=True, help="Package family (chip, soic, bga, dip, ...)")
+    p.add_argument("--density", type=str, default="B", choices=["A", "B", "C"], help="Density: A (MIL preferred), B (nominal), C (least)")
+    p.add_argument("--body-length", type=float, required=True, help="Body length in mm")
+    p.add_argument("--body-width", type=float, required=True, help="Body width in mm")
+    p.add_argument("--body-height", type=float, default=0.5, help="Body height in mm")
     p.add_argument("--lead-count", type=int, help="Number of leads")
     p.add_argument("--lead-pitch", type=float, help="Lead pitch in mm")
-    p.add_argument("--lead-width", type=float, default=0.3, help="Lead width (default: 0.3)")
-    p.add_argument("--lead-length", type=float, default=1.0, help="Lead length (default: 1.0)")
-    p.add_argument("--ball-diameter", type=float, help="BGA ball diameter")
+    p.add_argument("--lead-width", type=float, default=0.3, help="Lead width in mm")
+    p.add_argument("--lead-length", type=float, default=1.0, help="Lead length in mm")
+    p.add_argument("--ball-diameter", type=float, help="BGA ball diameter in mm")
     p.add_argument("--ball-count", type=int, help="BGA ball count")
-    p.add_argument("--output", type=Path, help="Output .kicad_mod path")
-    p.add_argument("--mil", action="store_true", help="Apply MIL derating")
+    p.add_argument("--output", "-o", type=Path, help="Output .kicad_mod path")
+    p.add_argument("--mil", action="store_true", help="Apply MIL derating (+0.05mm pads, +0.1mm courtyard)")
+    p.add_argument("--batch", type=Path, help="CSV file for batch generation")
+    p.add_argument("--library", type=str, default="generated", help="Library name for batch output (default: generated)")
     return p
 
 
@@ -31,10 +33,6 @@ def cli_generate(args: argparse.Namespace) -> int:
     from .core.ipc7351 import PackageDefinition, BodyDimensions, LeadDimensions, Tolerance, ValidationError
     from .core.families import calculate, apply_mil_derating
     from .export.kicad_mod import KiCadModExporter
-
-    if not args.package or not args.body_length or not args.body_width:
-        print("Error: --package, --body-length, --body-width required", file=sys.stderr)
-        return 1
 
     pkg = PackageDefinition(
         family=args.package,
@@ -58,28 +56,29 @@ def cli_generate(args: argparse.Namespace) -> int:
     out = args.output or Path(f"{pkg.family}_{args.body_length:.2f}x{args.body_width:.2f}.kicad_mod")
     KiCadModExporter(result).export(out)
     print(f"Generated: {out}")
+    print(f"  {len(result.pads)} pads, courtyard {result.courtyard.width:.2f}x{result.courtyard.height:.2f} mm")
     return 0
 
 
-def launch_gui() -> int:
+def cli_batch(args: argparse.Namespace) -> int:
+    from .export.batch_import import BatchImporter
     try:
-        from PySide6.QtWidgets import QApplication
-        from .gui.main_window import MainWindow
-    except ImportError:
-        print("GUI requires PySide6", file=sys.stderr)
+        importer = BatchImporter(args.output or Path.cwd(), library_name=args.library)
+        result = importer.from_csv(args.batch)
+        print(f"Batch: {result.succeeded}/{result.total} succeeded, {result.failed} failed")
+        for row, err in result.errors:
+            print(f"  Row {row}: {err}", file=sys.stderr)
+        return 0 if result.failed == 0 else 1
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
         return 1
-    app = QApplication(sys.argv)
-    app.setApplicationName("KiCad MIL IPC-7351 Footprint Generator")
-    window = MainWindow()
-    window.show()
-    return app.exec()
 
 
 def main() -> int:
     args = build_parser().parse_args()
-    if args.package:
-        return cli_generate(args)
-    return launch_gui()
+    if args.batch:
+        return cli_batch(args)
+    return cli_generate(args)
 
 
 if __name__ == "__main__":

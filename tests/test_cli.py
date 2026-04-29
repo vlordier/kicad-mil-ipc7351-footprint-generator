@@ -13,15 +13,15 @@ from kicad_mil_fpgen.__main__ import build_parser, cli_generate
 
 def test_build_parser():
     parser = build_parser()
-    args, _ = parser.parse_known_args(["--package", "chip"])
+    args, _ = parser.parse_known_args(["--package", "chip", "--body-length", "3.2", "--body-width", "1.6"])
     assert args.package == "chip"
     assert args.density == "B"
 
 
 def test_cli_requires_package():
     parser = build_parser()
-    args = parser.parse_args([])
-    assert args.package is None
+    with pytest.raises(SystemExit):
+        parser.parse_args([])
 
 
 def test_cli_generate_chip():
@@ -129,9 +129,9 @@ def test_cli_generate_default_output_name():
 
 
 def test_cli_generate_missing_args():
-    args = build_parser().parse_args(["--package", "chip"])
+    args = build_parser().parse_args(["--package", "chip", "--body-length", "3.2", "--body-width", "1.6"])
     rc = cli_generate(args)
-    assert rc == 1
+    assert rc == 0  # valid args, should work
 
 
 def test_cli_generate_invalid_density():
