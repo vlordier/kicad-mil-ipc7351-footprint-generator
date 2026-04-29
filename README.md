@@ -6,6 +6,16 @@
 ![Python](https://img.shields.io/badge/Python-3.11%2B-blue)
 ![Tests](https://img.shields.io/badge/tests-142%20passing-brightgreen)
 
+## Renders (KiCad 10.0.1)
+
+| Chip 1206 MIL | SOIC-8 | DIP-8 |
+|:---:|:---:|:---:|
+| <img src="docs/images/chip.svg" width="200"> | <img src="docs/images/soic.svg" width="200"> | <img src="docs/images/dip.svg" width="200"> |
+
+| QFN-32 + thermal pad | BGA-256 |
+|:---:|:---:|
+| <img src="docs/images/qfn.svg" width="300"> | <img src="docs/images/bga.svg" width="400"> |
+
 ## Who is this for?
 
 **This tool is useful if:**
