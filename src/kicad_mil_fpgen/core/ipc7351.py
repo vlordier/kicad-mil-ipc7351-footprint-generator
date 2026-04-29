@@ -12,9 +12,6 @@ from dataclasses import dataclass, field
 from typing import Optional
 from enum import Enum
 
-import yaml
-import numpy as np
-
 from .tolerances import (
     Tolerance,
     ToleranceStack,
@@ -38,12 +35,28 @@ class DensityLevel(Enum):
     MANUFACTURER = "MANUFACTURER"
 
 
+class FootprintError(Exception):
+    """Raised when footprint calculation fails due to invalid input."""
+
+
+class ValidationError(FootprintError):
+    """Raised when input dimensions fail validation."""
+
+
 @dataclass
 class BodyDimensions:
     length: Tolerance
     width: Tolerance
     height: Tolerance
     lead_span: Optional[Tolerance] = None
+
+    def validate(self) -> None:
+        if self.length.nominal <= 0:
+            raise ValidationError(f"Body length must be positive, got {self.length.nominal}")
+        if self.width.nominal <= 0:
+            raise ValidationError(f"Body width must be positive, got {self.width.nominal}")
+        if self.height.nominal <= 0:
+            raise ValidationError(f"Body height must be positive, got {self.height.nominal}")
 
 
 @dataclass
@@ -53,6 +66,16 @@ class LeadDimensions:
     pitch: Tolerance
     count: int = 0
     standoff: Tolerance = field(default_factory=lambda: Tolerance(0.1))
+
+    def validate(self) -> None:
+        if self.count < 1:
+            raise ValidationError(f"Lead count must be >= 1, got {self.count}")
+        if self.pitch.nominal <= 0:
+            raise ValidationError(f"Lead pitch must be positive, got {self.pitch.nominal}")
+        if self.width.nominal <= 0:
+            raise ValidationError(f"Lead width must be positive, got {self.width.nominal}")
+        if self.length.nominal <= 0:
+            raise ValidationError(f"Lead length must be positive, got {self.length.nominal}")
 
 
 @dataclass
@@ -64,6 +87,19 @@ class PackageDefinition:
     ball_count: int = 0
     pad_to_pad: Optional[Tolerance] = None
 
+    def validate(self) -> None:
+        if not self.family:
+            raise ValidationError("Package family must not be empty")
+        if self.body is None:
+            raise ValidationError("Body dimensions are required")
+        self.body.validate()
+        if self.leads is not None:
+            self.leads.validate()
+        if self.ball_diameter is not None and self.ball_diameter.nominal <= 0:
+            raise ValidationError(f"Ball diameter must be positive, got {self.ball_diameter.nominal}")
+        if self.ball_count < 0:
+            raise ValidationError(f"Ball count must be non-negative, got {self.ball_count}")
+
 
 @dataclass
 class PadPosition:
@@ -74,6 +110,7 @@ class PadPosition:
 
 @dataclass
 class PadDimensions:
+    number: int = 1
     width: float = 0.0
     height: float = 0.0
     toe: float = 0.0
@@ -97,13 +134,20 @@ class Courtyard:
     silkscreen_expansion: float = 0.0
     notes: list[str] = field(default_factory=list)
 
+    @property
+    def width(self) -> float:
+        return self.x_max - self.x_min
+
+    @property
+    def height(self) -> float:
+        return self.y_max - self.y_min
+
 
 @dataclass
 class FootprintResult:
     package: Optional[PackageDefinition] = None
     pads: list[PadDimensions] = field(default_factory=list)
     courtyard: Optional[Courtyard] = None
-    body: Optional[BodyDimensions] = None
     density: str = "B"
     ipc_version: str = "C"
     tolerance_results: list[ToleranceStackResult] = field(default_factory=list)
@@ -112,6 +156,12 @@ class FootprintResult:
     all_inputs: dict = field(default_factory=dict)
     all_intermediates: dict = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
+
+    @property
+    def body(self) -> Optional[BodyDimensions]:
+        if self.package is not None:
+            return self.package.body
+        return None
 
 
 # ---- Per-family density factors ----
@@ -139,6 +189,17 @@ _FAMILY_FACTORS: dict[str, dict[str, dict]] = {
         "C": {"annular_extra": 0.05, "courtyard": 0.10},
     },
 }
+
+_FAMILY_KEY_MAP: dict[str, str] = {
+    "chip": "chip", "resistor": "chip", "capacitor": "chip", "inductor": "chip",
+    "sot": "gullwing", "sod": "gullwing", "soic": "gullwing", "tssop": "gullwing",
+    "qfp": "gullwing", "qfn": "gullwing", "dfn": "gullwing",
+    "bga": "bga", "lga": "bga", "csp": "bga",
+    "dip": "tht", "sip": "tht", "tht": "tht", "axial": "tht", "radial": "tht",
+}
+
+_KICAD_LAYERS_SMD = '"F.Cu" "F.Paste" "F.Mask"'
+_KICAD_LAYERS_THT = '"F.Cu" "B.Cu"'
 
 
 class IPC7351Calculator:
@@ -170,15 +231,7 @@ class IPC7351Calculator:
             return self._family_override.get(density.upper(), self._family_override.get("B", {}))
 
         family_lower = family.lower().strip()
-        if family_lower in ("chip", "resistor", "capacitor", "inductor"):
-            key = "chip"
-        elif family_lower in ("sot", "sod", "soic", "tssop", "qfp", "qfn", "dfn"):
-            key = "gullwing"
-        elif family_lower in ("bga", "lga", "csp"):
-            key = "bga"
-        else:
-            key = "tht"
-
+        key = _FAMILY_KEY_MAP.get(family_lower, "chip")
         table = _FAMILY_FACTORS.get(key, _FAMILY_FACTORS["chip"])
         return table.get(density.upper(), table["B"])
 
@@ -188,29 +241,32 @@ class IPC7351Calculator:
         density: str = "B",
     ) -> FootprintResult:
         """Main entry point — compute all footprint dimensions."""
-        result = FootprintResult(
-            package=pkg,
-            density=density,
-            ipc_version=self.version.value,
-        )
-        result.body = pkg.body
+        pkg.validate()
 
         density_upper = density.upper()
-        assert density_upper in self.density_multipliers, f"Unknown density: {density}"
+        if density_upper not in self.density_multipliers:
+            raise ValidationError(f"Unknown density level: {density}. Must be one of {list(self.density_multipliers.keys())}")
+
+        result = FootprintResult(
+            package=pkg,
+            density=density_upper,
+            ipc_version=self.version.value,
+        )
         factors = self.get_factors(pkg.family, density_upper)
 
-        if pkg.family.lower() in ("chip", "resistor", "capacitor", "inductor"):
+        key = _FAMILY_KEY_MAP.get(pkg.family.lower(), "chip")
+        if key == "chip":
             result = self._calc_chip(pkg, factors, result)
-        elif pkg.family.lower() in ("sot", "sod", "soic", "tssop", "qfp", "qfn", "dfn"):
+        elif key == "gullwing":
             result = self._calc_gullwing(pkg, factors, result)
-        elif pkg.family.lower() in ("bga", "lga", "csp"):
+        elif key == "bga":
             result = self._calc_bga(pkg, factors, result)
-        elif pkg.family.lower() in ("dip", "sip", "tht"):
+        elif key == "tht":
             result = self._calc_tht(pkg, factors, result)
         else:
             result.warnings.append(f"Unknown package family: {pkg.family}")
 
-        result.courtyard = self._calc_courtyard(pkg, factors, result)
+        result.courtyard = self._calc_courtyard(factors, result)
         return result
 
     def _calc_chip(
@@ -220,7 +276,9 @@ class IPC7351Calculator:
         result: FootprintResult,
     ) -> FootprintResult:
         body = pkg.body
-        assert body is not None
+        if body is None:
+            raise FootprintError("Body dimensions required for chip footprint")
+        body.validate()
 
         body_length = body.length.nominal
         body_width = body.width.nominal
@@ -235,27 +293,19 @@ class IPC7351Calculator:
         z_max = body_length + 2 * toe
         g_min = body_width - 2 * side
 
-        # Pad positions: two pads on opposite ends along X
         pad_center_x = body_length / 2 + (toe - heel) / 2
-        left_pad = PadDimensions(
-            width=pad_width,
-            height=pad_height,
-            toe=toe,
-            heel=heel,
-            side=side,
+        result.pads.append(PadDimensions(
+            number=1, width=pad_width, height=pad_height,
+            toe=toe, heel=heel, side=side,
             shape=PadShape.ROUNDED_RECTANGLE,
             position=PadPosition(x=-pad_center_x, y=0.0),
-        )
-        right_pad = PadDimensions(
-            width=pad_width,
-            height=pad_height,
-            toe=toe,
-            heel=heel,
-            side=side,
+        ))
+        result.pads.append(PadDimensions(
+            number=2, width=pad_width, height=pad_height,
+            toe=toe, heel=heel, side=side,
             shape=PadShape.ROUNDED_RECTANGLE,
             position=PadPosition(x=pad_center_x, y=0.0),
-        )
-        result.pads.extend([left_pad, right_pad])
+        ))
 
         self._record_formula(result, "chip_pad_width", "W = B + 2S", body_width, side, pad_width)
         self._record_formula(result, "chip_pad_height", "L = T + H + Toe", body_length, toe, heel, pad_height)
@@ -273,7 +323,10 @@ class IPC7351Calculator:
     ) -> FootprintResult:
         body = pkg.body
         leads = pkg.leads
-        assert body is not None and leads is not None
+        if body is None or leads is None:
+            raise FootprintError("Body and lead dimensions required for gullwing footprint")
+        body.validate()
+        leads.validate()
 
         lead_width = leads.width.nominal
         lead_length = leads.length.nominal
@@ -290,27 +343,27 @@ class IPC7351Calculator:
         self._record_formula(result, "gullwing_pad_width", "W = LW + 2S", lead_width, side, pad_width)
         self._record_formula(result, "gullwing_pad_height", "L = LL + Toe + Heel", lead_length, toe, heel, pad_height)
 
-        # Generate pads along both sides
         pads_per_side = count // 2
         body_span = (pads_per_side - 1) * pitch
         pad_overhang = (pad_height - lead_length) / 2
+        pad_num = 1
 
         for i in range(pads_per_side):
             y_pos = -body_span / 2 + i * pitch
-            # Left side pads
             result.pads.append(PadDimensions(
-                width=pad_width, height=pad_height,
+                number=pad_num, width=pad_width, height=pad_height,
                 toe=toe, heel=heel, side=side,
                 shape=PadShape.OBLONG,
                 position=PadPosition(x=-(body.length.nominal / 2 + pad_overhang), y=y_pos),
             ))
-            # Right side pads
+            pad_num += 1
             result.pads.append(PadDimensions(
-                width=pad_width, height=pad_height,
+                number=pad_num, width=pad_width, height=pad_height,
                 toe=toe, heel=heel, side=side,
                 shape=PadShape.OBLONG,
                 position=PadPosition(x=body.length.nominal / 2 + pad_overhang, y=y_pos),
             ))
+            pad_num += 1
 
         result.notes.append(
             f"Gull-wing — {count} leads, pitch={pitch:.3f}, pad W={pad_width:.3f} H={pad_height:.3f}"
@@ -323,18 +376,17 @@ class IPC7351Calculator:
         factors: dict,
         result: FootprintResult,
     ) -> FootprintResult:
-        assert pkg.ball_diameter is not None
+        if pkg.ball_diameter is None:
+            raise FootprintError("Ball diameter required for BGA footprint")
         ball_d = pkg.ball_diameter.nominal
 
         nsmd_ratio = factors.get("nsmd_ratio", 0.85)
         pad_diameter = ball_d * nsmd_ratio
 
-        pad = PadDimensions(
-            width=pad_diameter,
-            height=pad_diameter,
+        result.pads.append(PadDimensions(
+            number=1, width=pad_diameter, height=pad_diameter,
             shape=PadShape.CIRCLE,
-        )
-        result.pads.append(pad)
+        ))
         result.notes.append(f"BGA — {pkg.ball_count} balls, pad dia={pad_diameter:.3f}")
         return result
 
@@ -346,19 +398,25 @@ class IPC7351Calculator:
     ) -> FootprintResult:
         body = pkg.body
         leads = pkg.leads
-        assert body is not None and leads is not None
+        if body is None or leads is None:
+            raise FootprintError("Body and lead dimensions required for THT footprint")
+        body.validate()
+        leads.validate()
 
         lead_diameter = leads.width.nominal
         annulus = factors["annular_extra"] + 0.15
         pad_diameter = lead_diameter + 2 * annulus
 
-        pad = PadDimensions(
-            width=pad_diameter,
-            height=pad_diameter,
-            shape=PadShape.CIRCLE,
-            notes=[f"Annular ring = {annulus:.3f} mm"],
-        )
-        result.pads.append(pad)
+        pad_center_x = body.length.nominal / 2 + pad_diameter / 2
+        for i in range(leads.count):
+            y_pos = -(leads.count - 1) * leads.pitch.nominal / 2 + i * leads.pitch.nominal
+            result.pads.append(PadDimensions(
+                number=i + 1, width=pad_diameter, height=pad_diameter,
+                shape=PadShape.CIRCLE,
+                notes=[f"Annular ring = {annulus:.3f} mm"],
+                position=PadPosition(x=pad_center_x, y=y_pos),
+            ))
+
         result.notes.append(
             f"THT — lead dia={lead_diameter:.3f}, pad dia={pad_diameter:.3f}"
         )
@@ -366,7 +424,6 @@ class IPC7351Calculator:
 
     def _calc_courtyard(
         self,
-        pkg: PackageDefinition,
         factors: dict,
         result: FootprintResult,
     ) -> Courtyard:
@@ -389,18 +446,18 @@ class IPC7351Calculator:
             y_min = min(ys) - cy_exp
             y_max = max(ys) + cy_exp
         else:
+            pkg = result.package
+            if pkg is None or pkg.body is None:
+                raise FootprintError("Cannot compute courtyard: no pads and no body dimensions")
             body = pkg.body
-            assert body is not None
             x_min = -body.length.nominal / 2 - cy_exp
             x_max = body.length.nominal / 2 + cy_exp
             y_min = -body.width.nominal / 2 - cy_exp
             y_max = body.width.nominal / 2 + cy_exp
 
         courtyard = Courtyard(
-            x_min=x_min,
-            x_max=x_max,
-            y_min=y_min,
-            y_max=y_max,
+            x_min=x_min, x_max=x_max,
+            y_min=y_min, y_max=y_max,
             assembly_expansion=cy_exp,
             silkscreen_expansion=cy_exp,
         )
@@ -409,7 +466,7 @@ class IPC7351Calculator:
         return courtyard
 
     def apply_mil_derating(self, result: FootprintResult) -> FootprintResult:
-        """Return a copy with MIL-grade derating applied (larger annular rings, extra courtyard).
+        """Return a copy with MIL-grade derating applied.
 
         Does NOT mutate the original result.
         """

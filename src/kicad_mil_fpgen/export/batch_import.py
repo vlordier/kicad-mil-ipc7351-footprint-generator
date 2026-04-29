@@ -3,7 +3,7 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterator, Optional
+from typing import Optional
 
 from ..core.ipc7351 import (
     IPC7351Calculator,
@@ -11,22 +11,20 @@ from ..core.ipc7351 import (
     BodyDimensions,
     LeadDimensions,
     Tolerance,
+    ValidationError,
 )
 from .kicad_mod import KiCadModExporter
 
 
 @dataclass
-class BatchRow:
-    reference: str = ""
-    value: str = ""
-    package_family: str = "chip"
-    body_length: float = 0.0
-    body_width: float = 0.0
-    body_height: float = 0.0
-    lead_count: int = 0
-    lead_pitch: float = 0.0
-    density: str = "B"
-    mil_grade: bool = False
+class BatchResult:
+    """Summary of a batch import operation."""
+
+    total: int = 0
+    succeeded: int = 0
+    failed: int = 0
+    errors: list[tuple[int, str]] = field(default_factory=list)
+    output_dir: Optional[Path] = None
 
 
 class BatchImporter:
@@ -37,7 +35,7 @@ class BatchImporter:
         self.library_name = library_name
         self.calculator = IPC7351Calculator(ipc_version="C")
 
-    def from_csv(self, csv_path: str | Path) -> list[Path]:
+    def from_csv(self, csv_path: str | Path) -> BatchResult:
         """Read a CSV file and generate footprints for each row.
 
         Expected CSV columns: reference,value,family,length,width,height,lead_count,pitch,density,mil
@@ -45,50 +43,65 @@ class BatchImporter:
         import csv
 
         csv_path = Path(csv_path)
-        generated: list[Path] = []
+        if not csv_path.exists():
+            raise FileNotFoundError(f"CSV file not found: {csv_path}")
+
+        result = BatchResult(output_dir=self.output_dir)
 
         with csv_path.open(newline="") as f:
             reader = csv.DictReader(f)
-            for row in reader:
-                pkg = self._row_to_package(row)
-                mil = row.get("mil", "").strip().lower() in ("1", "true", "yes", "y")
-                density = row.get("density", "B").strip().upper() or "B"
+            for row_num, row in enumerate(reader, start=1):
+                result.total += 1
+                try:
+                    pkg = self._row_to_package(row)
+                    mil = row.get("mil", "").strip().lower() in ("1", "true", "yes", "y")
+                    density = row.get("density", "B").strip().upper() or "B"
 
-                result = self.calculator.calculate_footprint(pkg, density=density)
-                if mil:
-                    result = self.calculator.apply_mil_derating(result)
+                    fp_result = self.calculator.calculate_footprint(pkg, density=density)
+                    if mil:
+                        fp_result = self.calculator.apply_mil_derating(fp_result)
 
-                exporter = KiCadModExporter(result)
-                lib_path = exporter.write_library(self.output_dir, self.library_name)
-                generated.append(lib_path)
+                    KiCadModExporter(fp_result).write_library(self.output_dir, self.library_name)
+                    result.succeeded += 1
+                except (ValidationError, ValueError, KeyError) as e:
+                    result.failed += 1
+                    result.errors.append((row_num, str(e)))
 
-        return generated
+        return result
 
-    def from_excel(self, xlsx_path: str | Path) -> list[Path]:
+    def from_excel(self, xlsx_path: str | Path) -> BatchResult:
         """Read an Excel file and generate footprints for each row."""
         import pandas as pd
 
         xlsx_path = Path(xlsx_path)
+        if not xlsx_path.exists():
+            raise FileNotFoundError(f"Excel file not found: {xlsx_path}")
+
         df = pd.read_excel(xlsx_path)
-        generated: list[Path] = []
+        result = BatchResult(output_dir=self.output_dir)
 
-        for _, row in df.iterrows():
-            r = row.to_dict()
-            pkg = self._row_to_package(r)
-            mil = str(r.get("mil", "0")).strip().lower() in ("1", "true", "yes", "y")
-            density = str(r.get("density", "B")).strip().upper() or "B"
+        for row_num, (_, row) in enumerate(df.iterrows(), start=1):
+            result.total += 1
+            try:
+                r = row.to_dict()
+                pkg = self._row_to_package(r)
+                mil = str(r.get("mil", "0")).strip().lower() in ("1", "true", "yes", "y")
+                density = str(r.get("density", "B")).strip().upper() or "B"
 
-            result = self.calculator.calculate_footprint(pkg, density=density)
-            if mil:
-                result = self.calculator.apply_mil_derating(result)
+                fp_result = self.calculator.calculate_footprint(pkg, density=density)
+                if mil:
+                    fp_result = self.calculator.apply_mil_derating(fp_result)
 
-            exporter = KiCadModExporter(result)
-            lib_path = exporter.write_library(self.output_dir, self.library_name)
-            generated.append(lib_path)
+                KiCadModExporter(fp_result).write_library(self.output_dir, self.library_name)
+                result.succeeded += 1
+            except (ValidationError, ValueError, KeyError) as e:
+                result.failed += 1
+                result.errors.append((row_num, str(e)))
 
-        return generated
+        return result
 
-    def _row_to_package(self, row: dict) -> PackageDefinition:
+    @staticmethod
+    def _row_to_package(row: dict) -> PackageDefinition:
         family = str(row.get("family", row.get("package_family", "chip"))).strip().lower()
         bl = float(row.get("length", row.get("body_length", 0)))
         bw = float(row.get("width", row.get("body_width", 0)))
@@ -105,9 +118,11 @@ class BatchImporter:
         lc = int(lc_str) if lc_str.lstrip("-").isdigit() else 0
         pitch = float(row.get("pitch", row.get("lead_pitch", 0)))
         if lc > 0 and pitch > 0:
+            lw = float(row.get("lead_width", 0.3))
+            ll = float(row.get("lead_length", 1.0))
             leads = LeadDimensions(
-                width=Tolerance(0.3, 0.05, 0.05),
-                length=Tolerance(1.0, 0.1, 0.1),
+                width=Tolerance(lw, lw * 0.1, lw * 0.1),
+                length=Tolerance(ll, ll * 0.1, ll * 0.1),
                 pitch=Tolerance(pitch, 0.0, 0.0),
                 count=lc,
             )
