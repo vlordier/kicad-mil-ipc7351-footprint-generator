@@ -90,10 +90,7 @@ class FootprintCalculator:
         return result
 
     def apply_mil_derating(self, result: FootprintResult) -> FootprintResult:
-        """Return a copy with MIL-grade derating applied."""
-        if not self._profile.get("mil_derating", False):
-            return copy.deepcopy(result)
-
+        """Return a copy with MIL-grade derating applied (always active)."""
         mil = copy.deepcopy(result)
         inc = MIL_DERATING_PAD_INCREMENT
         cy_inc = MIL_DERATING_COURTYARD_INCREMENT

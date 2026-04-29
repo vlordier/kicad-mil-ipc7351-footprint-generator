@@ -6,22 +6,17 @@ import math
 
 import pytest
 
-from kicad_mil_fpgen.core.ipc7351 import (
-    IPC7351Calculator,
-    PackageDefinition,
-    BodyDimensions,
-    LeadDimensions,
-    Tolerance,
-    ChipFactors,
-    GullwingFactors,
-    BgaFactors,
-    ThtFactors,
-)
+from kicad_mil_fpgen.core.calculator import FootprintCalculator
+from kicad_mil_fpgen.core.ipc7351 import PackageDefinition, BodyDimensions, LeadDimensions, Tolerance
 from kicad_mil_fpgen.core.constants import (
     FAMILY_FACTORS,
     CalcType,
     DensityLevel,
     MIL_DERATING_PAD_INCREMENT,
+    ChipFactors,
+    GullwingFactors,
+    BgaFactors,
+    ThtFactors,
 )
 from .conftest import make_chip_pkg, make_gullwing_pkg
 
@@ -36,7 +31,7 @@ class TestIPC7351Formulas:
     def test_chip_pad_width_formula(self, calc):
         """Chip pad_width = body_width + 2*side_expansion."""
         pkg = make_chip_pkg(length=3.2, width=1.6)
-        result = calc.calculate_footprint(pkg, density="B")
+        result = calc.calculate(pkg, density="B")
         f = FAMILY_FACTORS[CalcType.CHIP][DensityLevel.B]
         assert isinstance(f, ChipFactors)
         expected = 1.6 + 2 * f.side
@@ -45,7 +40,7 @@ class TestIPC7351Formulas:
     def test_chip_pad_height_formula(self, calc):
         """Chip pad_height = body_length + toe + heel."""
         pkg = make_chip_pkg(length=3.2, width=1.6)
-        result = calc.calculate_footprint(pkg, density="B")
+        result = calc.calculate(pkg, density="B")
         f = FAMILY_FACTORS[CalcType.CHIP][DensityLevel.B]
         assert isinstance(f, ChipFactors)
         expected = 3.2 + f.toe + f.heel
@@ -54,7 +49,7 @@ class TestIPC7351Formulas:
     def test_chip_pad_center_formula(self, calc):
         """Chip pad_center_x = body_length/2 + (toe - heel)/2."""
         pkg = make_chip_pkg(length=3.2, width=1.6)
-        result = calc.calculate_footprint(pkg, density="B")
+        result = calc.calculate(pkg, density="B")
         f = FAMILY_FACTORS[CalcType.CHIP][DensityLevel.B]
         assert isinstance(f, ChipFactors)
         expected = 3.2 / 2 + (f.toe - f.heel) / 2
@@ -64,7 +59,7 @@ class TestIPC7351Formulas:
     def test_gullwing_pad_width_formula(self, calc):
         """Gullwing pad_width = lead_width + 2*side_expansion."""
         pkg = make_gullwing_pkg(lead_w=0.4)
-        result = calc.calculate_footprint(pkg, density="B")
+        result = calc.calculate(pkg, density="B")
         f = FAMILY_FACTORS[CalcType.GULLWING][DensityLevel.B]
         assert isinstance(f, GullwingFactors)
         expected = 0.4 + 2 * f.side
@@ -73,7 +68,7 @@ class TestIPC7351Formulas:
     def test_gullwing_pad_height_formula(self, calc):
         """Gullwing pad_height = lead_length + toe + heel."""
         pkg = make_gullwing_pkg(lead_l=1.0)
-        result = calc.calculate_footprint(pkg, density="B")
+        result = calc.calculate(pkg, density="B")
         f = FAMILY_FACTORS[CalcType.GULLWING][DensityLevel.B]
         assert isinstance(f, GullwingFactors)
         expected = 1.0 + f.toe + f.heel
@@ -81,7 +76,7 @@ class TestIPC7351Formulas:
 
     def test_bga_pad_diameter_formula(self, calc, bga_pkg):
         """BGA pad_diameter = ball_diameter * nsmd_ratio."""
-        result = calc.calculate_footprint(bga_pkg, density="B")
+        result = calc.calculate(bga_pkg, density="B")
         f = FAMILY_FACTORS[CalcType.BGA][DensityLevel.B]
         assert isinstance(f, BgaFactors)
         expected = 0.5 * f.nsmd_ratio
@@ -90,7 +85,7 @@ class TestIPC7351Formulas:
     def test_tht_pad_diameter_formula(self, calc, tht_pkg):
         """THT pad_diameter = lead_diameter + 2*(annular_extra + base)."""
         from kicad_mil_fpgen.core.constants import ANNULAR_RING_BASE
-        result = calc.calculate_footprint(tht_pkg, density="B")
+        result = calc.calculate(tht_pkg, density="B")
         f = FAMILY_FACTORS[CalcType.THT][DensityLevel.B]
         assert isinstance(f, ThtFactors)
         annulus = f.annular_extra + ANNULAR_RING_BASE
@@ -107,7 +102,7 @@ class TestDensityMonotonicity:
 
     @staticmethod
     def _check_monotonic(calc, pkg):
-        results = {d: calc.calculate_footprint(pkg, density=d) for d in ["A", "B", "C"]}
+        results = {d: calc.calculate(pkg, density=d) for d in ["A", "B", "C"]}
         for attr in ("width", "height"):
             vals = [results[d].pads[0].__getattribute__(attr) for d in ("A", "B", "C")]
             assert vals[0] >= vals[1] >= vals[2], f"{attr} not monotonic: {vals}"
@@ -116,7 +111,7 @@ class TestDensityMonotonicity:
         self._check_monotonic(calc, make_chip_pkg())
 
     def test_chip_courtyard_monotonic(self, calc):
-        results = {d: calc.calculate_footprint(make_chip_pkg(), density=d) for d in ["A", "B", "C"]}
+        results = {d: calc.calculate(make_chip_pkg(), density=d) for d in ["A", "B", "C"]}
         for side in ("x_max", "y_max"):
             vals = [results[d].courtyard.__getattribute__(side) for d in ("A", "B", "C")]
             assert vals[0] >= vals[1] >= vals[2], f"Courtyard {side} not monotonic: {vals}"
@@ -139,7 +134,7 @@ class TestSymmetry:
     """All footprints must be symmetric about the origin."""
 
     def test_chip_symmetry(self, calc):
-        result = calc.calculate_footprint(make_chip_pkg(), density="B")
+        result = calc.calculate(make_chip_pkg(), density="B")
         left, right = result.pads[0], result.pads[1]
         assert left.position.x == -right.position.x
         assert left.position.y == right.position.y
@@ -147,7 +142,7 @@ class TestSymmetry:
         assert left.height == right.height
 
     def test_gullwing_symmetry(self, calc):
-        result = calc.calculate_footprint(make_gullwing_pkg(), density="B")
+        result = calc.calculate(make_gullwing_pkg(), density="B")
         for i in range(0, len(result.pads), 2):
             left, right = result.pads[i], result.pads[i + 1]
             assert left.position.x == -right.position.x
@@ -155,7 +150,7 @@ class TestSymmetry:
             assert left.width == right.width
 
     def test_courtyard_centered(self, calc):
-        result = calc.calculate_footprint(make_chip_pkg(), density="B")
+        result = calc.calculate(make_chip_pkg(), density="B")
         cy = result.courtyard
         assert abs(cy.x_min + cy.x_max) < 1e-9
         assert abs(cy.y_min + cy.y_max) < 1e-9
@@ -174,7 +169,7 @@ class TestCourtyardCorrectness:
             bw = 0.5 + abs(hash(str(_ + 100))) % 50 / 10
             pkg = make_chip_pkg(length=bl, width=bw)
             for d in ["A", "B", "C"]:
-                result = calc.calculate_footprint(pkg, density=d)
+                result = calc.calculate(pkg, density=d)
                 cy = result.courtyard
                 for pad in result.pads:
                     left = pad.position.x - pad.width / 2
@@ -189,7 +184,7 @@ class TestCourtyardCorrectness:
     def test_courtyard_clearance_positive(self, calc):
         """Courtyard must extend beyond pads by at least the clearance."""
         pkg = make_chip_pkg()
-        result = calc.calculate_footprint(pkg, density="B")
+        result = calc.calculate(pkg, density="B")
         cy = result.courtyard
         for pad in result.pads:
             dx = min(abs(cy.x_min - (pad.position.x - pad.width / 2)),
@@ -205,26 +200,26 @@ class TestMilDerating:
     """MIL derating must preserve invariants and apply correct increments."""
 
     def test_mil_increment_exact(self, calc, chip_pkg):
-        result = calc.calculate_footprint(chip_pkg, density="B")
+        result = calc.calculate(chip_pkg, density="B")
         mil = calc.apply_mil_derating(result)
         for i, pad in enumerate(mil.pads):
             assert abs(pad.width - result.pads[i].width - MIL_DERATING_PAD_INCREMENT) < 1e-9
             assert abs(pad.height - result.pads[i].height - MIL_DERATING_PAD_INCREMENT) < 1e-9
 
     def test_mil_preserves_symmetry(self, calc, chip_pkg):
-        result = calc.calculate_footprint(chip_pkg, density="A")
+        result = calc.calculate(chip_pkg, density="A")
         mil = calc.apply_mil_derating(result)
         left, right = mil.pads[0], mil.pads[1]
         assert left.position.x == -right.position.x
         assert left.width == right.width
 
     def test_mil_preserves_formulas(self, calc, chip_pkg):
-        result = calc.calculate_footprint(chip_pkg, density="B")
+        result = calc.calculate(chip_pkg, density="B")
         mil = calc.apply_mil_derating(result)
         assert mil.formulas_used == result.formulas_used
 
     def test_mil_multiple_calls_independent(self, calc, chip_pkg):
-        result = calc.calculate_footprint(chip_pkg, density="B")
+        result = calc.calculate(chip_pkg, density="B")
         m1 = calc.apply_mil_derating(result)
         m2 = calc.apply_mil_derating(result)
         assert m1.pads[0].width == m2.pads[0].width
@@ -242,14 +237,14 @@ class TestPadCountInvariants:
             for bw in [0.5, 1.6, 5.0, 25.0]:
                 pkg = make_chip_pkg(length=bl, width=bw)
                 for d in ["A", "B", "C"]:
-                    r = calc.calculate_footprint(pkg, density=d)
+                    r = calc.calculate(pkg, density=d)
                     assert len(r.pads) == 2
 
     def test_gullwing_leads_even(self, calc):
         """8-lead SOIC has 8 pads, 14-lead has 14, etc."""
         for count in [8, 14, 16, 20, 24, 28]:
             pkg = make_gullwing_pkg(lead_count=count)
-            r = calc.calculate_footprint(pkg, density="B")
+            r = calc.calculate(pkg, density="B")
             assert len(r.pads) == count
 
     def test_tht_leads_match(self, calc):
@@ -259,7 +254,7 @@ class TestPadCountInvariants:
                 body=BodyDimensions(length=Tolerance(20.0), width=Tolerance(7.0), height=Tolerance(3.5)),
                 leads=LeadDimensions(width=Tolerance(0.6), length=Tolerance(2.0), pitch=Tolerance(2.54), count=count),
             )
-            r = calc.calculate_footprint(pkg, density="B")
+            r = calc.calculate(pkg, density="B")
             assert len(r.pads) == count
 
 
@@ -272,8 +267,8 @@ class TestDeterminism:
 
     def test_deterministic_chip(self, calc):
         pkg = make_chip_pkg()
-        r1 = calc.calculate_footprint(pkg, density="B")
-        r2 = calc.calculate_footprint(pkg, density="B")
+        r1 = calc.calculate(pkg, density="B")
+        r2 = calc.calculate(pkg, density="B")
         for i in range(len(r1.pads)):
             assert r1.pads[i].width == r2.pads[i].width
             assert r1.pads[i].position.x == r2.pads[i].position.x
@@ -283,8 +278,8 @@ class TestDeterminism:
     def test_deterministic_all_densities(self, calc):
         pkg = make_chip_pkg()
         for d in ["A", "B", "C"]:
-            r1 = calc.calculate_footprint(pkg, density=d)
-            r2 = calc.calculate_footprint(pkg, density=d)
+            r1 = calc.calculate(pkg, density=d)
+            r2 = calc.calculate(pkg, density=d)
             assert r1.pads[0].width == r2.pads[0].width
 
 
@@ -297,12 +292,12 @@ class TestFormulaRecording:
 
     def test_all_families_record_formulas(self, calc, chip_pkg, gullwing_pkg, bga_pkg, tht_pkg):
         for pkg in [chip_pkg, gullwing_pkg, bga_pkg, tht_pkg]:
-            r = calc.calculate_footprint(pkg, density="B")
+            r = calc.calculate(pkg, density="B")
             # At minimum, courtyard formula is always recorded
             assert "courtyard" in r.formulas_used
 
     def test_formulas_are_readable(self, calc, chip_pkg):
-        r = calc.calculate_footprint(chip_pkg, density="B")
+        r = calc.calculate(chip_pkg, density="B")
         for name, formula in r.formulas_used.items():
             assert "=" in formula
             assert len(formula) > 5

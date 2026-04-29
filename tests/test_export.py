@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from kicad_mil_fpgen.core.calculator import FootprintCalculator
 from kicad_mil_fpgen.core.ipc7351 import (
-    IPC7351Calculator,
     PackageDefinition,
     BodyDimensions,
     LeadDimensions,
@@ -28,12 +28,12 @@ from kicad_mil_fpgen.export.kicad_mod import KiCadModExporter
 
 @pytest.fixture
 def chip_result():
-    calc = IPC7351Calculator()
+    calc = FootprintCalculator()
     pkg = PackageDefinition(
         family="chip",
         body=BodyDimensions(length=Tolerance(3.2, 0.1, 0.1), width=Tolerance(1.6, 0.1, 0.1), height=Tolerance(0.55, 0.1, 0.1)),
     )
-    return calc.calculate_footprint(pkg, density="B")
+    return calc.calculate(pkg, density="B")
 
 
 # ---------------------------------------------------------------------------
@@ -195,8 +195,8 @@ def test_export_tht_layers():
         body=BodyDimensions(length=Tolerance(20.0), width=Tolerance(7.0), height=Tolerance(3.5)),
         leads=LeadDimensions(width=Tolerance(0.6), length=Tolerance(2.0), pitch=Tolerance(2.54), count=8),
     )
-    calc = IPC7351Calculator()
-    result = calc.calculate_footprint(pkg, density="B")
+    calc = FootprintCalculator()
+    result = calc.calculate(pkg, density="B")
     output = KiCadModExporter(result).to_string()
     # THT should have F.Cu only (no F.Paste/F.Mask)
     for layer in ['F.Paste', 'F.Mask']:
@@ -208,13 +208,13 @@ def test_export_tht_layers():
 # ---------------------------------------------------------------------------
 
 def test_export_all_densities():
-    calc = IPC7351Calculator()
+    calc = FootprintCalculator()
     pkg = PackageDefinition(
         family="chip",
         body=BodyDimensions(length=Tolerance(3.2), width=Tolerance(1.6), height=Tolerance(0.55)),
     )
     for d in ["A", "B", "C"]:
-        result = calc.calculate_footprint(pkg, density=d)
+        result = calc.calculate(pkg, density=d)
         output = KiCadModExporter(result).to_string()
         assert f'_{d}' in output
         assert output.count('(pad ') == 2

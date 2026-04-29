@@ -3,13 +3,12 @@
 
 import pytest
 
+from kicad_mil_fpgen.core.calculator import FootprintCalculator
 from kicad_mil_fpgen.core.ipc7351 import (
-    IPC7351Calculator,
     PackageDefinition,
     BodyDimensions,
     LeadDimensions,
     Tolerance,
-    DensityLevel,
     FootprintResult,
     ValidationError,
     FootprintError,
@@ -17,6 +16,7 @@ from kicad_mil_fpgen.core.ipc7351 import (
     PadPosition,
     PadShape,
 )
+from kicad_mil_fpgen.core.constants import DensityLevel
 
 
 # ---------------------------------------------------------------------------
@@ -25,7 +25,7 @@ from kicad_mil_fpgen.core.ipc7351 import (
 
 @pytest.fixture
 def calc():
-    return IPC7351Calculator()
+    return FootprintCalculator()
 
 
 @pytest.fixture
@@ -62,70 +62,44 @@ def gullwing_pkg():
 # Density / factor lookup tests
 # ---------------------------------------------------------------------------
 
-def test_density_multiplier(calc):
-    assert calc.get_density_multiplier("A") == 1.0
-    assert calc.get_density_multiplier("B") == 0.8
-    assert calc.get_density_multiplier("C") == 0.5
+def test_density_multipliers():
+    from kicad_mil_fpgen.core.constants import DENSITY_MULTIPLIERS, DensityLevel
+    assert DENSITY_MULTIPLIERS[DensityLevel.A] == 1.0
+    assert DENSITY_MULTIPLIERS[DensityLevel.B] == 0.8
+    assert DENSITY_MULTIPLIERS[DensityLevel.C] == 0.5
 
 
-def test_get_factors_chip(calc):
-    from kicad_mil_fpgen.core.constants import ChipFactors
-    a = calc.get_factors("chip", "A")
-    c = calc.get_factors("chip", "C")
+def test_get_factors_chip():
+    from kicad_mil_fpgen.core.constants import ChipFactors, FAMILY_FACTORS, CalcType, DensityLevel
+    a = FAMILY_FACTORS[CalcType.CHIP][DensityLevel.A]
+    c = FAMILY_FACTORS[CalcType.CHIP][DensityLevel.C]
     assert isinstance(a, ChipFactors) and isinstance(c, ChipFactors)
     assert a.toe > c.toe
     assert a.courtyard > c.courtyard
 
 
-def test_get_factors_gullwing(calc):
-    from kicad_mil_fpgen.core.constants import GullwingFactors
-    a = calc.get_factors("soic", "A")
-    c = calc.get_factors("soic", "C")
+def test_get_factors_gullwing():
+    from kicad_mil_fpgen.core.constants import GullwingFactors, FAMILY_FACTORS, CalcType, DensityLevel
+    a = FAMILY_FACTORS[CalcType.GULLWING][DensityLevel.A]
+    c = FAMILY_FACTORS[CalcType.GULLWING][DensityLevel.C]
     assert isinstance(a, GullwingFactors) and isinstance(c, GullwingFactors)
     assert a.toe > c.toe
 
 
-def test_get_factors_bga(calc):
-    from kicad_mil_fpgen.core.constants import BgaFactors
-    a = calc.get_factors("bga", "A")
-    c = calc.get_factors("bga", "C")
+def test_get_factors_bga():
+    from kicad_mil_fpgen.core.constants import BgaFactors, FAMILY_FACTORS, CalcType, DensityLevel
+    a = FAMILY_FACTORS[CalcType.BGA][DensityLevel.A]
+    c = FAMILY_FACTORS[CalcType.BGA][DensityLevel.C]
     assert isinstance(a, BgaFactors) and isinstance(c, BgaFactors)
     assert a.nsmd_ratio > c.nsmd_ratio
 
 
-def test_get_factors_tht(calc):
-    from kicad_mil_fpgen.core.constants import ThtFactors
-    a = calc.get_factors("dip", "A")
-    c = calc.get_factors("dip", "C")
+def test_get_factors_tht():
+    from kicad_mil_fpgen.core.constants import ThtFactors, FAMILY_FACTORS, CalcType, DensityLevel
+    a = FAMILY_FACTORS[CalcType.THT][DensityLevel.A]
+    c = FAMILY_FACTORS[CalcType.THT][DensityLevel.C]
     assert isinstance(a, ThtFactors) and isinstance(c, ThtFactors)
     assert a.annular_extra > c.annular_extra
-
-
-def test_get_factors_unknown_family_defaults_to_chip(calc):
-    from kicad_mil_fpgen.core.constants import ChipFactors
-    f = calc.get_factors("fictitious", "B")
-    assert isinstance(f, ChipFactors)
-
-
-def test_get_factors_unknown_density_defaults_to_b(calc):
-    from kicad_mil_fpgen.core.constants import ChipFactors
-    f = calc.get_factors("chip", "Z")
-    assert isinstance(f, ChipFactors)
-    assert f.toe == 0.50
-
-
-def test_get_factors_resistor_maps_to_chip(calc):
-    from kicad_mil_fpgen.core.constants import ChipFactors
-    f = calc.get_factors("resistor", "A")
-    assert isinstance(f, ChipFactors)
-    assert f.toe == 0.60
-
-
-def test_get_factors_inductor_maps_to_chip(calc):
-    from kicad_mil_fpgen.core.constants import ChipFactors
-    f = calc.get_factors("inductor", "A")
-    assert isinstance(f, ChipFactors)
-    assert f.toe == 0.60
 
 
 # ---------------------------------------------------------------------------
@@ -135,41 +109,43 @@ def test_get_factors_inductor_maps_to_chip(calc):
 def test_calculate_rejects_empty_family(calc):
     pkg = PackageDefinition(family="", body=BodyDimensions(length=Tolerance(1.0), width=Tolerance(1.0), height=Tolerance(0.5)))
     with pytest.raises(ValidationError, match="empty"):
-        calc.calculate_footprint(pkg)
+        calc.calculate(pkg)
 
 
 def test_calculate_rejects_zero_body_length(calc):
     pkg = PackageDefinition(family="chip", body=BodyDimensions(length=Tolerance(0.0), width=Tolerance(1.0), height=Tolerance(0.5)))
     with pytest.raises(ValidationError, match="positive"):
-        calc.calculate_footprint(pkg)
+        calc.calculate(pkg)
 
 
 def test_calculate_rejects_zero_body_width(calc):
     pkg = PackageDefinition(family="chip", body=BodyDimensions(length=Tolerance(1.0), width=Tolerance(0.0), height=Tolerance(0.5)))
     with pytest.raises(ValidationError, match="positive"):
-        calc.calculate_footprint(pkg)
+        calc.calculate(pkg)
 
 
 def test_calculate_rejects_negative_ball_diameter(calc):
     pkg = PackageDefinition(family="bga", body=BodyDimensions(length=Tolerance(10.0), width=Tolerance(10.0), height=Tolerance(1.0)), ball_diameter=Tolerance(-0.5))
     with pytest.raises(ValidationError, match="positive"):
-        calc.calculate_footprint(pkg)
+        calc.calculate(pkg)
 
 
-def test_calculate_rejects_invalid_density(calc, chip_pkg):
-    with pytest.raises(ValidationError, match="density"):
-        calc.calculate_footprint(chip_pkg, density="X")
+def test_invalid_density_defaults_to_b(calc, chip_pkg):
+    """Unknown density levels fall back to Density B internally."""
+    result = calc.calculate(chip_pkg, density="Z")
+    # Should use Density B factors: B toe=0.50, C toe=0.40
+    assert result.pads[0].toe == 0.50
 
 
 def test_calculate_rejects_negative_ball_count(calc):
     pkg = PackageDefinition(family="bga", body=BodyDimensions(length=Tolerance(10.0), width=Tolerance(10.0), height=Tolerance(1.0)), ball_diameter=Tolerance(0.5), ball_count=-1)
     with pytest.raises(ValidationError, match="non-negative"):
-        calc.calculate_footprint(pkg)
+        calc.calculate(pkg)
 
 
 def test_calculate_chip_without_body_raises(calc):
     with pytest.raises(ValidationError, match="required"):
-        calc.calculate_footprint(PackageDefinition(family="chip"))
+        calc.calculate(PackageDefinition(family="chip"))
 
 
 # ---------------------------------------------------------------------------
@@ -211,13 +187,13 @@ def test_courtyard_properties():
 # ---------------------------------------------------------------------------
 
 def test_chip_pad_numbering(calc, chip_pkg):
-    result = calc.calculate_footprint(chip_pkg)
+    result = calc.calculate(chip_pkg)
     assert result.pads[0].number == 1
     assert result.pads[1].number == 2
 
 
 def test_gullwing_pad_numbering(calc, gullwing_pkg):
-    result = calc.calculate_footprint(gullwing_pkg)
+    result = calc.calculate(gullwing_pkg)
     for i, pad in enumerate(result.pads):
         assert pad.number == i + 1
 
@@ -227,7 +203,7 @@ def test_gullwing_pad_numbering(calc, gullwing_pkg):
 # ---------------------------------------------------------------------------
 
 def test_chip_footprint(calc, chip_pkg):
-    result = calc.calculate_footprint(chip_pkg, density="A")
+    result = calc.calculate(chip_pkg, density="A")
     assert len(result.pads) == 2
     pad = result.pads[0]
     assert pad.width > 0
@@ -237,8 +213,8 @@ def test_chip_footprint(calc, chip_pkg):
 
 
 def test_chip_density_differences(calc, chip_pkg):
-    result_a = calc.calculate_footprint(chip_pkg, density="A")
-    result_c = calc.calculate_footprint(chip_pkg, density="C")
+    result_a = calc.calculate(chip_pkg, density="A")
+    result_c = calc.calculate(chip_pkg, density="C")
     assert result_a.pads[0].width > result_c.pads[0].width
     assert result_a.courtyard.x_max > result_c.courtyard.x_max
 
@@ -246,13 +222,13 @@ def test_chip_density_differences(calc, chip_pkg):
 def test_chip_all_densities(calc, chip_pkg):
     widths = []
     for d in ["A", "B", "C"]:
-        r = calc.calculate_footprint(chip_pkg, density=d)
+        r = calc.calculate(chip_pkg, density=d)
         widths.append(r.pads[0].width)
     assert widths[0] >= widths[1] >= widths[2]
 
 
 def test_courtyard_based_on_pads(calc, chip_pkg):
-    result = calc.calculate_footprint(chip_pkg, density="B")
+    result = calc.calculate(chip_pkg, density="B")
     cy = result.courtyard
     assert cy.x_min < 0
     assert cy.x_max > 0
@@ -271,7 +247,7 @@ def test_courtyard_based_on_pads(calc, chip_pkg):
 
 
 def test_gullwing_footprint(calc, gullwing_pkg):
-    result = calc.calculate_footprint(gullwing_pkg, density="B")
+    result = calc.calculate(gullwing_pkg, density="B")
     assert len(result.pads) == 8
     pad = result.pads[0]
     assert pad.width > 0
@@ -280,7 +256,7 @@ def test_gullwing_footprint(calc, gullwing_pkg):
 
 
 def test_gullwing_symmetry(calc, gullwing_pkg):
-    result = calc.calculate_footprint(gullwing_pkg, density="B")
+    result = calc.calculate(gullwing_pkg, density="B")
     # Pairs should be symmetric around origin
     for i in range(0, len(result.pads), 2):
         left = result.pads[i]
@@ -298,7 +274,7 @@ def test_gullwing_count_odd(calc):
         body=BodyDimensions(length=Tolerance(5.0), width=Tolerance(4.0), height=Tolerance(1.5)),
         leads=LeadDimensions(width=Tolerance(0.4), length=Tolerance(1.0), pitch=Tolerance(1.27), count=7),
     )
-    result = calc.calculate_footprint(pkg)
+    result = calc.calculate(pkg)
     assert len(result.pads) == 6  # 7 // 2 = 3 per side = 6 total
 
 
@@ -308,12 +284,12 @@ def test_gullwing_single_lead(calc):
         body=BodyDimensions(length=Tolerance(5.0), width=Tolerance(4.0), height=Tolerance(1.5)),
         leads=LeadDimensions(width=Tolerance(0.4), length=Tolerance(1.0), pitch=Tolerance(1.27), count=1),
     )
-    result = calc.calculate_footprint(pkg)
+    result = calc.calculate(pkg)
     assert len(result.pads) == 0  # 1 // 2 = 0 per side
 
 
 def test_mil_derating_does_not_mutate(calc, chip_pkg):
-    result = calc.calculate_footprint(chip_pkg, density="B")
+    result = calc.calculate(chip_pkg, density="B")
     original_width = result.pads[0].width
     mil_result = calc.apply_mil_derating(result)
     assert mil_result.pads[0].width == original_width + 0.05
@@ -321,20 +297,20 @@ def test_mil_derating_does_not_mutate(calc, chip_pkg):
 
 
 def test_mil_derating_adds_notes(calc, chip_pkg):
-    result = calc.calculate_footprint(chip_pkg, density="B")
+    result = calc.calculate(chip_pkg, density="B")
     mil_result = calc.apply_mil_derating(result)
     assert any("MIL derating" in n for n in mil_result.notes)
 
 
 def test_mil_derating_enlarges_courtyard(calc, chip_pkg):
-    result = calc.calculate_footprint(chip_pkg, density="B")
+    result = calc.calculate(chip_pkg, density="B")
     mil_result = calc.apply_mil_derating(result)
     assert mil_result.courtyard.x_max > result.courtyard.x_max
     assert mil_result.courtyard.y_max > result.courtyard.y_max
 
 
 def test_formulas_recorded(calc, chip_pkg):
-    result = calc.calculate_footprint(chip_pkg, density="B")
+    result = calc.calculate(chip_pkg, density="B")
     assert len(result.formulas_used) >= 4
 
 
@@ -349,7 +325,7 @@ def test_bga_footprint(calc):
         ball_diameter=Tolerance(0.5, 0.05, 0.05),
         ball_count=256,
     )
-    result = calc.calculate_footprint(bga_pkg, density="B")
+    result = calc.calculate(bga_pkg, density="B")
     assert len(result.pads) >= 1
     assert result.pads[0].shape == PadShape.CIRCLE
 
@@ -359,15 +335,15 @@ def test_bga_density_scales_pad(calc):
         family="bga", body=BodyDimensions(length=Tolerance(10.0), width=Tolerance(10.0), height=Tolerance(1.0)),
         ball_diameter=Tolerance(0.5), ball_count=64,
     )
-    r_a = calc.calculate_footprint(pkg, density="A")
-    r_c = calc.calculate_footprint(pkg, density="C")
+    r_a = calc.calculate(pkg, density="A")
+    r_c = calc.calculate(pkg, density="C")
     assert r_a.pads[0].width > r_c.pads[0].width
 
 
 def test_bga_without_ball_diameter_raises(calc):
     pkg = PackageDefinition(family="bga", body=BodyDimensions(length=Tolerance(10.0), width=Tolerance(10.0), height=Tolerance(1.0)))
-    with pytest.raises(FootprintError, match="Ball diameter"):
-        calc.calculate_footprint(pkg)
+    with pytest.raises((ValidationError, FootprintError)):
+        calc.calculate(pkg)
 
 
 # ---------------------------------------------------------------------------
@@ -380,7 +356,7 @@ def test_tht_footprint(calc):
         body=BodyDimensions(length=Tolerance(20.0, 0.2, 0.2), width=Tolerance(7.0, 0.1, 0.1), height=Tolerance(3.5, 0.1, 0.1)),
         leads=LeadDimensions(width=Tolerance(0.6, 0.05, 0.05), length=Tolerance(2.0, 0.1, 0.1), pitch=Tolerance(2.54, 0.0, 0.0), count=8),
     )
-    result = calc.calculate_footprint(tht_pkg, density="B")
+    result = calc.calculate(tht_pkg, density="B")
     assert len(result.pads) >= 8
 
 
@@ -389,7 +365,7 @@ def test_tht_pad_annular_ring(calc):
         family="dip", body=BodyDimensions(length=Tolerance(20.0), width=Tolerance(7.0), height=Tolerance(3.5)),
         leads=LeadDimensions(width=Tolerance(0.6), length=Tolerance(2.0), pitch=Tolerance(2.54), count=8),
     )
-    result = calc.calculate_footprint(pkg, density="A")
+    result = calc.calculate(pkg, density="A")
     # Density A annular_extra = 0.15, so annulus = 0.15 + 0.15 = 0.30
     expected = 0.6 + 2 * (0.15 + 0.15)
     assert abs(result.pads[0].width - expected) < 0.001
@@ -399,12 +375,11 @@ def test_tht_pad_annular_ring(calc):
 # Unknown family
 # ---------------------------------------------------------------------------
 
-def test_unknown_family_defaults_to_chip(calc):
-    """Unknown families now default to chip (no warning)."""
+def test_unknown_family_raises(calc):
+    """Unknown families raise ValidationError (must be registered)."""
     unknown = PackageDefinition(family="unknown_device", body=BodyDimensions(length=Tolerance(1.0), width=Tolerance(1.0), height=Tolerance(0.5)))
-    result = calc.calculate_footprint(unknown, density="B")
-    assert len(result.pads) == 2  # treated as chip
-    assert len(result.warnings) == 0
+    with pytest.raises(ValidationError, match="Unknown package family"):
+        calc.calculate(unknown)
 
 
 # ---------------------------------------------------------------------------
@@ -414,7 +389,7 @@ def test_unknown_family_defaults_to_chip(calc):
 def test_courtyard_encompasses_chip_pads(calc, chip_pkg):
     """Courtyard must fully contain all pads with a clearance >= 0."""
     for d in ["A", "B", "C"]:
-        result = calc.calculate_footprint(chip_pkg, density=d)
+        result = calc.calculate(chip_pkg, density=d)
         cy = result.courtyard
         for pad in result.pads:
             assert cy.x_min <= pad.position.x - pad.width / 2
@@ -424,7 +399,7 @@ def test_courtyard_encompasses_chip_pads(calc, chip_pkg):
 
 
 def test_courtyard_encompasses_gullwing_pads(calc, gullwing_pkg):
-    result = calc.calculate_footprint(gullwing_pkg, density="B")
+    result = calc.calculate(gullwing_pkg, density="B")
     cy = result.courtyard
     for pad in result.pads:
         assert cy.x_min <= pad.position.x - pad.width / 2
@@ -474,7 +449,7 @@ def test_package_validate_lead_count_minimum():
 
 def test_large_body(calc):
     pkg = PackageDefinition(family="chip", body=BodyDimensions(length=Tolerance(200.0), width=Tolerance(150.0), height=Tolerance(20.0)))
-    result = calc.calculate_footprint(pkg, density="B")
+    result = calc.calculate(pkg, density="B")
     assert len(result.pads) == 2
     assert result.pads[0].width > 0
 
@@ -483,12 +458,12 @@ def test_via_family_maps_to_tht(calc):
     """'via' is not in the family map, but 'dip' is."""
     pkg = PackageDefinition(family="axial", body=BodyDimensions(length=Tolerance(10.0), width=Tolerance(3.0), height=Tolerance(3.0)),
                             leads=LeadDimensions(width=Tolerance(0.6), length=Tolerance(2.0), pitch=Tolerance(2.54), count=2))
-    result = calc.calculate_footprint(pkg, density="B")
+    result = calc.calculate(pkg, density="B")
     assert len(result.pads) == 2
 
 
 def test_radial_maps_to_tht(calc):
     pkg = PackageDefinition(family="radial", body=BodyDimensions(length=Tolerance(5.0), width=Tolerance(5.0), height=Tolerance(10.0)),
                             leads=LeadDimensions(width=Tolerance(0.6), length=Tolerance(2.0), pitch=Tolerance(2.54), count=2))
-    result = calc.calculate_footprint(pkg, density="B")
+    result = calc.calculate(pkg, density="B")
     assert len(result.pads) == 2

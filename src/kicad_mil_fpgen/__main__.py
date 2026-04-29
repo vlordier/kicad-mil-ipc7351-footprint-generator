@@ -32,7 +32,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def cli_generate(args: argparse.Namespace) -> int:
-    from .core.ipc7351 import IPC7351Calculator, PackageDefinition, BodyDimensions, LeadDimensions, Tolerance, ValidationError
+    from .core.ipc7351 import PackageDefinition, BodyDimensions, LeadDimensions, Tolerance, ValidationError
+    from .core.calculator import FootprintCalculator
     from .export.kicad_mod import KiCadModExporter
 
     if not args.package or not args.body_length or not args.body_width:
@@ -58,8 +59,8 @@ def cli_generate(args: argparse.Namespace) -> int:
         )
 
     try:
-        calc = IPC7351Calculator()
-        result = calc.calculate_footprint(pkg, density=args.density)
+        calc = FootprintCalculator()
+        result = calc.calculate(pkg, density=args.density)
     except ValidationError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1

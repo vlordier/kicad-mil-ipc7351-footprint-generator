@@ -115,12 +115,12 @@ class TestFootprintCalculatorMilDerating:
             body=BodyDimensions(length=Tolerance(3.2), width=Tolerance(1.6), height=Tolerance(0.55)),
         )
 
-    def test_mil_derating_conditional(self):
+    def test_mil_derating_always_applies(self):
         calc = FootprintCalculator(mil_derating=False)
         result = calc.calculate(self.make_chip())
         mil = calc.apply_mil_derating(result)
-        # mil_derating=False means apply_mil_derating returns a copy unchanged
-        assert mil.pads[0].width == result.pads[0].width
+        # apply_mil_derating always applies derating regardless of profile
+        assert mil.pads[0].width == result.pads[0].width + 0.05
 
     def test_mil_derating_does_not_mutate_original(self):
         calc = FootprintCalculator(mil_derating=True)

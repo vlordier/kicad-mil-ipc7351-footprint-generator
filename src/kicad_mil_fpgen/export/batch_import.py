@@ -5,8 +5,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+from ..core.calculator import FootprintCalculator
 from ..core.ipc7351 import (
-    IPC7351Calculator,
     PackageDefinition,
     BodyDimensions,
     LeadDimensions,
@@ -33,7 +33,7 @@ class BatchImporter:
     def __init__(self, output_dir: str | Path, library_name: str = "batch_generated"):
         self.output_dir = Path(output_dir)
         self.library_name = library_name
-        self.calculator = IPC7351Calculator()
+        self.calculator = FootprintCalculator()
 
     def from_csv(self, csv_path: str | Path) -> BatchResult:
         """Read a CSV file and generate footprints for each row.
@@ -57,7 +57,7 @@ class BatchImporter:
                     mil = row.get("mil", "").strip().lower() in ("1", "true", "yes", "y")
                     density = row.get("density", "B").strip().upper() or "B"
 
-                    fp_result = self.calculator.calculate_footprint(pkg, density=density)
+                    fp_result = self.calculator.calculate(pkg, density=density)
                     if mil:
                         fp_result = self.calculator.apply_mil_derating(fp_result)
 
@@ -88,7 +88,7 @@ class BatchImporter:
                 mil = str(r.get("mil", "0")).strip().lower() in ("1", "true", "yes", "y")
                 density = str(r.get("density", "B")).strip().upper() or "B"
 
-                fp_result = self.calculator.calculate_footprint(pkg, density=density)
+                fp_result = self.calculator.calculate(pkg, density=density)
                 if mil:
                     fp_result = self.calculator.apply_mil_derating(fp_result)
 

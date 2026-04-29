@@ -3,8 +3,8 @@
 
 import pytest
 
+from kicad_mil_fpgen.core.calculator import FootprintCalculator
 from kicad_mil_fpgen.core.ipc7351 import (
-    IPC7351Calculator,
     PackageDefinition,
     BodyDimensions,
     LeadDimensions,
@@ -18,8 +18,8 @@ from kicad_mil_fpgen.core.ipc7351 import (
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
-def calc() -> IPC7351Calculator:
-    return IPC7351Calculator()
+def calc() -> FootprintCalculator:
+    return FootprintCalculator()
 
 
 # ---------------------------------------------------------------------------
@@ -94,22 +94,22 @@ def tht_pkg() -> PackageDefinition:
 
 @pytest.fixture
 def chip_result(calc, chip_pkg) -> FootprintResult:
-    return calc.calculate_footprint(chip_pkg, density="B")
+    return calc.calculate(chip_pkg, density="B")
 
 
 @pytest.fixture
 def gullwing_result(calc, gullwing_pkg) -> FootprintResult:
-    return calc.calculate_footprint(gullwing_pkg, density="B")
+    return calc.calculate(gullwing_pkg, density="B")
 
 
 @pytest.fixture
 def bga_result(calc, bga_pkg) -> FootprintResult:
-    return calc.calculate_footprint(bga_pkg, density="B")
+    return calc.calculate(bga_pkg, density="B")
 
 
 @pytest.fixture
 def tht_result(calc, tht_pkg) -> FootprintResult:
-    return calc.calculate_footprint(tht_pkg, density="B")
+    return calc.calculate(tht_pkg, density="B")
 
 
 # ---------------------------------------------------------------------------
