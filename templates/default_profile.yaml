@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Default User Profile
 name: "Default"
 description: "Standard IPC-7351C footprint generation with nominal settings"

@@ -1,6 +1,8 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Tolerance stacking engine per J-STD-001 and IPC-7351.
 
 Supports nominal, min/max, RSS, and worst-case tolerance stacking methods.
+All calculations are transparent for PDF report documentation.
 """
 
 from __future__ import annotations
@@ -48,6 +50,16 @@ class Tolerance:
 
 
 @dataclass
+class ToleranceStackResult:
+    nominal: float = 0.0
+    min: float = 0.0
+    max: float = 0.0
+    plus: float = 0.0
+    minus: float = 0.0
+    method: ToleranceMethod = ToleranceMethod.NOMINAL
+
+
+@dataclass
 class ToleranceStack:
     tolerances: list[Tolerance] = field(default_factory=list)
     method: ToleranceMethod = ToleranceMethod.NOMINAL
@@ -69,7 +81,7 @@ class ToleranceStack:
         else:
             return self._min_max()
 
-    def _min_max(self) -> "ToleranceStackResult":
+    def _min_max(self) -> ToleranceStackResult:
         result = ToleranceStackResult(method=self.method)
         total_nominal = sum(t.nominal for t in self.tolerances)
         total_min = sum(t.min_value for t in self.tolerances)
@@ -82,7 +94,7 @@ class ToleranceStack:
         result.plus = total_max - total_nominal
         return result
 
-    def _rss(self) -> "ToleranceStackResult":
+    def _rss(self) -> ToleranceStackResult:
         result = ToleranceStackResult(method=self.method)
         total_nominal = sum(t.nominal for t in self.tolerances)
         rss_plus = math.sqrt(sum(t.plus ** 2 for t in self.tolerances))
@@ -95,18 +107,8 @@ class ToleranceStack:
         result.plus = rss_plus
         return result
 
-    def _worst_case(self) -> "ToleranceStackResult":
+    def _worst_case(self) -> ToleranceStackResult:
         return self._min_max()
-
-
-@dataclass
-class ToleranceStackResult:
-    nominal: float = 0.0
-    min: float = 0.0
-    max: float = 0.0
-    plus: float = 0.0
-    minus: float = 0.0
-    method: ToleranceMethod = ToleranceMethod.NOMINAL
 
 
 class ToleranceEngine:

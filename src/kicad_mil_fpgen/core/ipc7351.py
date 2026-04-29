@@ -1,9 +1,13 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """IPC-7351B/C calculation engine — pure math, no GUI, fully testable.
 
 All calculations are transparent: every intermediate value and formula
 result is recorded for PDF report generation.
 """
 
+from __future__ import annotations
+
+import copy
 from dataclasses import dataclass, field
 from typing import Optional
 from enum import Enum
@@ -62,6 +66,13 @@ class PackageDefinition:
 
 
 @dataclass
+class PadPosition:
+    x: float = 0.0
+    y: float = 0.0
+    rotation: float = 0.0
+
+
+@dataclass
 class PadDimensions:
     width: float = 0.0
     height: float = 0.0
@@ -70,6 +81,7 @@ class PadDimensions:
     side: float = 0.0
     shape: PadShape = PadShape.ROUNDED_RECTANGLE
     corner_radius: float = 0.0
+    position: PadPosition = field(default_factory=PadPosition)
     notes: list[str] = field(default_factory=list)
 
 
@@ -102,6 +114,33 @@ class FootprintResult:
     notes: list[str] = field(default_factory=list)
 
 
+# ---- Per-family density factors ----
+# Values are in mm. Density A (Most) = largest pads for maximum solder joint strength.
+# Density C (Least) = smallest pads for high-density designs.
+_FAMILY_FACTORS: dict[str, dict[str, dict]] = {
+    "chip": {
+        "A": {"heel": 0.25, "toe": 0.60, "side": 0.25, "courtyard": 0.50},
+        "B": {"heel": 0.20, "toe": 0.50, "side": 0.20, "courtyard": 0.25},
+        "C": {"heel": 0.15, "toe": 0.40, "side": 0.15, "courtyard": 0.10},
+    },
+    "gullwing": {
+        "A": {"heel": 0.30, "toe": 0.65, "side": 0.20, "courtyard": 0.50},
+        "B": {"heel": 0.25, "toe": 0.55, "side": 0.15, "courtyard": 0.25},
+        "C": {"heel": 0.20, "toe": 0.45, "side": 0.10, "courtyard": 0.10},
+    },
+    "bga": {
+        "A": {"nsmd_ratio": 0.90, "smd_ratio": 0.95, "courtyard": 0.50},
+        "B": {"nsmd_ratio": 0.85, "smd_ratio": 0.90, "courtyard": 0.25},
+        "C": {"nsmd_ratio": 0.80, "smd_ratio": 0.85, "courtyard": 0.10},
+    },
+    "tht": {
+        "A": {"annular_extra": 0.15, "courtyard": 0.50},
+        "B": {"annular_extra": 0.10, "courtyard": 0.25},
+        "C": {"annular_extra": 0.05, "courtyard": 0.10},
+    },
+}
+
+
 class IPC7351Calculator:
     """Main calculation engine for IPC-7351B/C footprint generation.
 
@@ -121,25 +160,27 @@ class IPC7351Calculator:
         }
         self.tolerance_method = ToleranceMethod.MIN_MAX
         self.padstack_engine = PadstackEngine()
-        self._density_factors: dict[str, dict] = self._default_density_factors()
-
-    def _default_density_factors(self) -> dict[str, dict]:
-        """IPC-7351C Table 3-1 density factors.
-
-        Density A (Most) = largest pad for maximum solder joint strength.
-        Density C (Least) = smallest pad for high-density designs.
-        """
-        return {
-            "A": {"heel": 0.25, "toe": 0.75, "side": 0.25, "courtyard": 0.5, "annular": 0.10},
-            "B": {"heel": 0.15, "toe": 0.55, "side": 0.15, "courtyard": 0.25, "annular": 0.05},
-            "C": {"heel": 0.05, "toe": 0.35, "side": 0.05, "courtyard": 0.10, "annular": 0.025},
-        }
+        self._family_override: dict | None = None
 
     def get_density_multiplier(self, density: str) -> float:
         return self.density_multipliers.get(density.upper(), 0.8)
 
-    def get_density_factors(self, density: str) -> dict:
-        return self._density_factors.get(density.upper(), self._density_factors["B"])
+    def get_factors(self, family: str, density: str) -> dict:
+        if self._family_override:
+            return self._family_override.get(density.upper(), self._family_override.get("B", {}))
+
+        family_lower = family.lower().strip()
+        if family_lower in ("chip", "resistor", "capacitor", "inductor"):
+            key = "chip"
+        elif family_lower in ("sot", "sod", "soic", "tssop", "qfp", "qfn", "dfn"):
+            key = "gullwing"
+        elif family_lower in ("bga", "lga", "csp"):
+            key = "bga"
+        else:
+            key = "tht"
+
+        table = _FAMILY_FACTORS.get(key, _FAMILY_FACTORS["chip"])
+        return table.get(density.upper(), table["B"])
 
     def calculate_footprint(
         self,
@@ -156,7 +197,7 @@ class IPC7351Calculator:
 
         density_upper = density.upper()
         assert density_upper in self.density_multipliers, f"Unknown density: {density}"
-        factors = self.get_density_factors(density_upper)
+        factors = self.get_factors(pkg.family, density_upper)
 
         if pkg.family.lower() in ("chip", "resistor", "capacitor", "inductor"):
             result = self._calc_chip(pkg, factors, result)
@@ -194,21 +235,34 @@ class IPC7351Calculator:
         z_max = body_length + 2 * toe
         g_min = body_width - 2 * side
 
-        self._record_formula(result, "chip_pad_width", "W = B + 2S", body_width, side, pad_width)
-        self._record_formula(result, "chip_pad_height", "L = T + H + Toe", body_length, toe, heel, pad_height)
-        self._record_formula(result, "chip_z_max", "Z = L + 2Toe", body_length, toe, z_max)
-        self._record_formula(result, "chip_g_min", "G = B - 2S", body_width, side, g_min)
-
-        pad = PadDimensions(
+        # Pad positions: two pads on opposite ends along X
+        pad_center_x = body_length / 2 + (toe - heel) / 2
+        left_pad = PadDimensions(
             width=pad_width,
             height=pad_height,
             toe=toe,
             heel=heel,
             side=side,
             shape=PadShape.ROUNDED_RECTANGLE,
+            position=PadPosition(x=-pad_center_x, y=0.0),
         )
-        result.pads.append(pad)
-        result.notes.append(f"Chip package — pad W={pad_width:.3f} H={pad_height:.3f}")
+        right_pad = PadDimensions(
+            width=pad_width,
+            height=pad_height,
+            toe=toe,
+            heel=heel,
+            side=side,
+            shape=PadShape.ROUNDED_RECTANGLE,
+            position=PadPosition(x=pad_center_x, y=0.0),
+        )
+        result.pads.extend([left_pad, right_pad])
+
+        self._record_formula(result, "chip_pad_width", "W = B + 2S", body_width, side, pad_width)
+        self._record_formula(result, "chip_pad_height", "L = T + H + Toe", body_length, toe, heel, pad_height)
+        self._record_formula(result, "chip_z_max", "Z = L + 2Toe", body_length, toe, z_max)
+        self._record_formula(result, "chip_g_min", "G = B - 2S", body_width, side, g_min)
+
+        result.notes.append(f"Chip — pad W={pad_width:.3f} H={pad_height:.3f}, 2 pads at ±{pad_center_x:.3f}")
         return result
 
     def _calc_gullwing(
@@ -224,6 +278,7 @@ class IPC7351Calculator:
         lead_width = leads.width.nominal
         lead_length = leads.length.nominal
         pitch = leads.pitch.nominal
+        count = leads.count
 
         toe = factors["toe"]
         heel = factors["heel"]
@@ -235,17 +290,30 @@ class IPC7351Calculator:
         self._record_formula(result, "gullwing_pad_width", "W = LW + 2S", lead_width, side, pad_width)
         self._record_formula(result, "gullwing_pad_height", "L = LL + Toe + Heel", lead_length, toe, heel, pad_height)
 
-        pad = PadDimensions(
-            width=pad_width,
-            height=pad_height,
-            toe=toe,
-            heel=heel,
-            side=side,
-            shape=PadShape.OBLONG,
-        )
-        result.pads.append(pad)
+        # Generate pads along both sides
+        pads_per_side = count // 2
+        body_span = (pads_per_side - 1) * pitch
+        pad_overhang = (pad_height - lead_length) / 2
+
+        for i in range(pads_per_side):
+            y_pos = -body_span / 2 + i * pitch
+            # Left side pads
+            result.pads.append(PadDimensions(
+                width=pad_width, height=pad_height,
+                toe=toe, heel=heel, side=side,
+                shape=PadShape.OBLONG,
+                position=PadPosition(x=-(body.length.nominal / 2 + pad_overhang), y=y_pos),
+            ))
+            # Right side pads
+            result.pads.append(PadDimensions(
+                width=pad_width, height=pad_height,
+                toe=toe, heel=heel, side=side,
+                shape=PadShape.OBLONG,
+                position=PadPosition(x=body.length.nominal / 2 + pad_overhang, y=y_pos),
+            ))
+
         result.notes.append(
-            f"Gull-wing — {leads.count} leads, pitch={pitch:.3f}, pad W={pad_width:.3f} H={pad_height:.3f}"
+            f"Gull-wing — {count} leads, pitch={pitch:.3f}, pad W={pad_width:.3f} H={pad_height:.3f}"
         )
         return result
 
@@ -258,7 +326,8 @@ class IPC7351Calculator:
         assert pkg.ball_diameter is not None
         ball_d = pkg.ball_diameter.nominal
 
-        pad_diameter, _ = PadstackEngine.bga_pad(ball_diameter=ball_d, pitch=0.0)
+        nsmd_ratio = factors.get("nsmd_ratio", 0.85)
+        pad_diameter = ball_d * nsmd_ratio
 
         pad = PadDimensions(
             width=pad_diameter,
@@ -280,7 +349,7 @@ class IPC7351Calculator:
         assert body is not None and leads is not None
 
         lead_diameter = leads.width.nominal
-        annulus = factors["annular"] + 0.15
+        annulus = factors["annular_extra"] + 0.15
         pad_diameter = lead_diameter + 2 * annulus
 
         pad = PadDimensions(
@@ -301,41 +370,66 @@ class IPC7351Calculator:
         factors: dict,
         result: FootprintResult,
     ) -> Courtyard:
-        body = pkg.body
-        assert body is not None
+        """Courtyard based on outermost pad extents + fabrication allowance.
 
-        body_length = body.length.nominal
-        body_width = body.width.nominal
-        cy_exp = factors["courtyard"]
+        Per IPC-7351, the courtyard encompasses the land pattern with a
+        fabrication clearance applied to the outermost pad edges.
+        """
+        cy_exp = factors.get("courtyard", 0.25)
+
+        if result.pads:
+            xs = []
+            ys = []
+            for p in result.pads:
+                px, py = p.position.x, p.position.y
+                xs.extend([px - p.width / 2, px + p.width / 2])
+                ys.extend([py - p.height / 2, py + p.height / 2])
+            x_min = min(xs) - cy_exp
+            x_max = max(xs) + cy_exp
+            y_min = min(ys) - cy_exp
+            y_max = max(ys) + cy_exp
+        else:
+            body = pkg.body
+            assert body is not None
+            x_min = -body.length.nominal / 2 - cy_exp
+            x_max = body.length.nominal / 2 + cy_exp
+            y_min = -body.width.nominal / 2 - cy_exp
+            y_max = body.width.nominal / 2 + cy_exp
 
         courtyard = Courtyard(
-            x_min=-body_length / 2 - cy_exp,
-            x_max=body_length / 2 + cy_exp,
-            y_min=-body_width / 2 - cy_exp,
-            y_max=body_width / 2 + cy_exp,
+            x_min=x_min,
+            x_max=x_max,
+            y_min=y_min,
+            y_max=y_max,
             assembly_expansion=cy_exp,
             silkscreen_expansion=cy_exp,
         )
-        self._record_formula(result, "courtyard", "CY = Body + 2*CY_exp", body_length, cy_exp, courtyard.x_max * 2)
+        extent_x = x_max - x_min
+        self._record_formula(result, "courtyard", "CY = PadExtent + 2*CY_exp", extent_x, cy_exp, extent_x)
         return courtyard
 
     def apply_mil_derating(self, result: FootprintResult) -> FootprintResult:
-        """Apply MIL-grade derating — larger annular rings, extra courtyard."""
-        for pad in result.pads:
+        """Return a copy with MIL-grade derating applied (larger annular rings, extra courtyard).
+
+        Does NOT mutate the original result.
+        """
+        mil = copy.deepcopy(result)
+
+        for pad in mil.pads:
             pad.width += 0.05
             pad.height += 0.05
             pad.notes.append("MIL derating: +0.05mm added")
 
-        if result.courtyard:
-            result.courtyard.assembly_expansion += 0.1
-            result.courtyard.x_min -= 0.1
-            result.courtyard.x_max += 0.1
-            result.courtyard.y_min -= 0.1
-            result.courtyard.y_max += 0.1
-            result.courtyard.notes.append("MIL derating: extra 0.1mm courtyard")
+        if mil.courtyard:
+            mil.courtyard.assembly_expansion += 0.1
+            mil.courtyard.x_min -= 0.1
+            mil.courtyard.x_max += 0.1
+            mil.courtyard.y_min -= 0.1
+            mil.courtyard.y_max += 0.1
+            mil.courtyard.notes.append("MIL derating: extra 0.1mm courtyard")
 
-        result.notes.append("MIL derating applied (vibration-resistant)")
-        return result
+        mil.notes.append("MIL derating applied (vibration-resistant)")
+        return mil
 
     def _record_formula(self, result: FootprintResult, name: str, formula: str, *args) -> None:
         detail = f"{formula} = {[f'{a:.4f}' if isinstance(a, float) else a for a in args]}"

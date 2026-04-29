@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Component data model — a component with reference designator, value, and package."""
 
 from dataclasses import dataclass, field

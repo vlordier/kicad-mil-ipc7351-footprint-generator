@@ -1,38 +1,81 @@
-# IPC-7351C Table 3-1: Density Level Factors
+# SPDX-License-Identifier: GPL-3.0-or-later
+# IPC-7351C Table 3-1: Density Level Factors (per family)
 # All values in mm
+#
+# Density A (Most) = largest pad for maximum solder joint strength
+# Density B (Nominal) = standard IPC footprint
+# Density C (Least) = smallest pad for high-density designs
 
 ipc_version: "C"
 
-density_levels:
-  A:
-    name: "Most (Maximum)"
-    description: "Largest footprint — preferred for MIL/high-reliability. Provides maximum solder joint strength."
-    factors:
+families:
+  chip:
+    A:
+      name: "Most (Maximum)"
       heel: 0.25
-      toe: 0.75
+      toe: 0.60
       side: 0.25
       courtyard: 0.50
-      annular_ring_extra: 0.10
-      solder_fillet_min: 0.30
-
-  B:
-    name: "Nominal (Median)"
-    description: "Standard IPC footprint — recommended for general-purpose designs."
-    factors:
+    B:
+      name: "Nominal (Median)"
+      heel: 0.20
+      toe: 0.50
+      side: 0.20
+      courtyard: 0.25
+    C:
+      name: "Least (Minimum)"
       heel: 0.15
+      toe: 0.40
+      side: 0.15
+      courtyard: 0.10
+
+  gullwing:
+    A:
+      name: "Most (Maximum)"
+      heel: 0.30
+      toe: 0.65
+      side: 0.20
+      courtyard: 0.50
+    B:
+      name: "Nominal (Median)"
+      heel: 0.25
       toe: 0.55
       side: 0.15
       courtyard: 0.25
-      annular_ring_extra: 0.05
-      solder_fillet_min: 0.20
-
-  C:
-    name: "Least (Minimum)"
-    description: "Smallest footprint — for high-density designs with controlled processes."
-    factors:
-      heel: 0.05
-      toe: 0.35
-      side: 0.05
+    C:
+      name: "Least (Minimum)"
+      heel: 0.20
+      toe: 0.45
+      side: 0.10
       courtyard: 0.10
-      annular_ring_extra: 0.025
-      solder_fillet_min: 0.10
+
+  bga:
+    A:
+      name: "Most (Maximum)"
+      nsmd_ratio: 0.90
+      smd_ratio: 0.95
+      courtyard: 0.50
+    B:
+      name: "Nominal (Median)"
+      nsmd_ratio: 0.85
+      smd_ratio: 0.90
+      courtyard: 0.25
+    C:
+      name: "Least (Minimum)"
+      nsmd_ratio: 0.80
+      smd_ratio: 0.85
+      courtyard: 0.10
+
+  tht:
+    A:
+      name: "Most (Maximum)"
+      annular_extra: 0.15
+      courtyard: 0.50
+    B:
+      name: "Nominal (Median)"
+      annular_extra: 0.10
+      courtyard: 0.25
+    C:
+      name: "Least (Minimum)"
+      annular_extra: 0.05
+      courtyard: 0.10

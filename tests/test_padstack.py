@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Tests for the padstack engine."""
 
 from kicad_mil_fpgen.core.padstack import (

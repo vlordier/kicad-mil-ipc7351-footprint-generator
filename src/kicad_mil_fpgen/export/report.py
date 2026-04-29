@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """PDF report generator — produces a calculation report for design documentation."""
 
 from dataclasses import dataclass
@@ -47,7 +48,7 @@ class PDFReportGenerator:
             elements.append(Paragraph(f"Package: {pkg.family}", styles["Heading2"]))
 
             if pkg.body:
-                elements.append(Paragraph(f"Body: {pkg.body.length.nominal:.3f} x {pkg.body.width.nominal:.3f} x {pkg.body.height.nominal:.3f} mm", styles["Normal"]))
+                elements.append(Paragraph(f"Body: {pkg.body.length.nominal:.3f} × {pkg.body.width.nominal:.3f} × {pkg.body.height.nominal:.3f} mm", styles["Normal"]))
 
         if self.result.formulas_used:
             elements.append(Spacer(1, 3 * mm))

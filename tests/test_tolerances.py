@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Tests for the tolerance calculation engine."""
 
 from kicad_mil_fpgen.core.tolerances import (
@@ -47,7 +48,7 @@ def test_rss_stacking():
 
 def test_solder_fillet():
     toe, heel = ToleranceEngine.solder_fillet(lead_thickness=0.2, pad_length=1.0, class_=3)
-    assert toe >= 0.3  # Class 3 minimum
+    assert toe >= 0.3
     assert heel >= 0.15
 
 

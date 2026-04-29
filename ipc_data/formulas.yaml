@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 # IPC-7351B/C Formula Reference
 # All formulas used by the calculation engine, stored for transparency and auditability.
 
@@ -22,18 +23,17 @@ gull_wing:
     S = side expansion, CL = component length
 
 bga:
-  pad_diameter_nsmd: "PD = BD × 0.85"
-  pad_diameter_smd: "PD = BD × 0.90"
+  pad_diameter_nsmd: "PD = BD × nsmd_ratio"
+  pad_diameter_smd: "PD = BD × smd_ratio"
   mask_opening_nsmd: "MO = PD + 0.10"
   mask_opening_smd: "MO = PD + 0.05"
   description: >
     BD = ball diameter, PD = pad diameter
-    NSMD = Non-Solder Mask Defined
-    SMD = Solder Mask Defined
+    Ratios vary by density: A=0.90, B=0.85, C=0.80 (NSMD)
 
 through_hole:
   pad_diameter: "PD = LD + 2AR"
-  annular_ring: "AR = min_annular_ring (per IPC-6012 class)"
+  annular_ring: "AR = annular_extra + 0.15 (per IPC-6012 class)"
   description: >
     LD = lead diameter, AR = annular ring
 
@@ -44,6 +44,8 @@ tolerance:
   description: "RSS recommended for statistical tolerancing, worst-case for critical MIL paths."
 
 courtyard:
-  assembly: "CY = Body + 2 × CY_exp"
+  assembly: "CY = PadExtent + 2 × CY_exp"
   silkscreen: "F.SilkS outside courtyard by 0.1mm min"
-  description: "Density A: 0.5mm, B: 0.25mm, C: 0.1mm expansion"
+  description: >
+    Courtyard based on outermost pad edges, not body.
+    Density A: 0.5mm, B: 0.25mm, C: 0.1mm expansion.

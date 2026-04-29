@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Padstack engine — multi-layer pad definitions with custom drill and annular ring rules."""
 
 from dataclasses import dataclass, field
