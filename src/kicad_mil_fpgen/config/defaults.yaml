@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Default configuration for kicad-mil-fpgen
+# Users can override these in ~/.config/kicad-mil-fpgen/config.yaml
+# or in .kicad-mil-fpgen.yaml in the project root.
+
+profiles:
+  mil_standard:
+    description: "MIL-STD / IPC Class 3 high-reliability profile"
+    density: "A"
+    mil_derating: true
+    tolerance_method: "worst_case"
+    courtyard_expansion: 0.5
+    naming_prefix: "MIL_"
+    naming_suffix: "_IPC7351C"
+    annular_ring_extra: 0.1
+    generate_report: true
+
+  nominal:
+    description: "Standard IPC-7351C nominal profile"
+    density: "B"
+    mil_derating: false
+    tolerance_method: "min_max"
+    courtyard_expansion: 0.25
+    naming_prefix: ""
+    naming_suffix: ""
+    annular_ring_extra: 0.0
+    generate_report: false
+
+  high_density:
+    description: "High-density design profile (smallest footprints)"
+    density: "C"
+    mil_derating: false
+    tolerance_method: "rss"
+    courtyard_expansion: 0.1
+    naming_prefix: "HD_"
+    naming_suffix: ""
+    annular_ring_extra: 0.0
+    generate_report: false
+
+output:
+  format: "kicad_mod"
+  kicad_version: "20240101"
+  generator_name: "kicad-mil-ipc7351"
+  library_prefix: ""
+  pretty_folders: true
+
+naming:
+  style: "ipc7351"  # ipc7351, mil, custom
+  include_density: true
+  include_version: true
+  separator: "_"
