@@ -5,57 +5,11 @@ import pytest
 
 from kicad_mil_fpgen.core.calculator import FootprintCalculator
 from kicad_mil_fpgen.core.ipc7351 import (
-    PackageDefinition,
-    BodyDimensions,
-    LeadDimensions,
-    Tolerance,
-    FootprintResult,
-    ValidationError,
-    FootprintError,
-    PadDimensions,
-    PadPosition,
-    PadShape,
+    PackageDefinition, BodyDimensions, LeadDimensions, Tolerance,
+    FootprintResult, ValidationError, FootprintError, PadDimensions,
+    PadPosition, PadShape,
 )
 
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-@pytest.fixture
-def calc():
-    return FootprintCalculator()
-
-
-@pytest.fixture
-def chip_pkg():
-    return PackageDefinition(
-        family="chip",
-        body=BodyDimensions(
-            length=Tolerance(3.2, 0.1, 0.1),
-            width=Tolerance(1.6, 0.1, 0.1),
-            height=Tolerance(0.55, 0.1, 0.1),
-        ),
-    )
-
-
-@pytest.fixture
-def gullwing_pkg():
-    return PackageDefinition(
-        family="soic",
-        body=BodyDimensions(
-            length=Tolerance(5.0, 0.1, 0.1),
-            width=Tolerance(4.0, 0.1, 0.1),
-            height=Tolerance(1.5, 0.1, 0.1),
-        ),
-        leads=LeadDimensions(
-            width=Tolerance(0.4, 0.05, 0.05),
-            length=Tolerance(1.0, 0.1, 0.1),
-            pitch=Tolerance(1.27, 0.0, 0.0),
-            count=8,
-        ),
-    )
 
 
 # ---------------------------------------------------------------------------

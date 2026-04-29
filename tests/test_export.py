@@ -9,31 +9,10 @@ import pytest
 
 from kicad_mil_fpgen.core.calculator import FootprintCalculator
 from kicad_mil_fpgen.core.ipc7351 import (
-    PackageDefinition,
-    BodyDimensions,
-    LeadDimensions,
-    Tolerance,
-    PadDimensions,
-    PadPosition,
-    PadShape,
-    FootprintResult,
-    Courtyard,
+    PackageDefinition, BodyDimensions, LeadDimensions, Tolerance,
+    PadDimensions, PadPosition, PadShape, FootprintResult, Courtyard,
 )
 from kicad_mil_fpgen.export.kicad_mod import KiCadModExporter
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-@pytest.fixture
-def chip_result():
-    calc = FootprintCalculator()
-    pkg = PackageDefinition(
-        family="chip",
-        body=BodyDimensions(length=Tolerance(3.2, 0.1, 0.1), width=Tolerance(1.6, 0.1, 0.1), height=Tolerance(0.55, 0.1, 0.1)),
-    )
-    return calc.calculate(pkg, density="B")
 
 
 # ---------------------------------------------------------------------------

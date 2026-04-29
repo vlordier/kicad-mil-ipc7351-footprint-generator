@@ -3,21 +3,14 @@
 
 import pytest
 from hypothesis import given, strategies as st, assume
-from hypothesis.extra.numpy import arrays
 
 from kicad_mil_fpgen.core.calculator import FootprintCalculator
 from kicad_mil_fpgen.core.ipc7351 import (
-    PackageDefinition,
-    BodyDimensions,
-    LeadDimensions,
-    Tolerance,
-    ValidationError,
-    FootprintError,
+    PackageDefinition, BodyDimensions, LeadDimensions, Tolerance, ValidationError, FootprintError,
 )
 
 # Valid dimension range (mm)
 SMALL = 0.1
-MEDIUM = 10.0
 LARGE = 200.0
 
 

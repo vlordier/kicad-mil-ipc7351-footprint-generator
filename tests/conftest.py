@@ -7,7 +7,6 @@ from kicad_mil_fpgen.core.calculator import FootprintCalculator
 from kicad_mil_fpgen.core.ipc7351 import (
     PackageDefinition, BodyDimensions, LeadDimensions, Tolerance, FootprintResult,
 )
-from kicad_mil_fpgen.core.families import calculate, apply_mil_derating
 
 
 @pytest.fixture
@@ -50,3 +49,13 @@ def make_chip_pkg(length=3.2, width=1.6, height=0.55) -> PackageDefinition:
         width=Tolerance(width, width * 0.05, width * 0.05),
         height=Tolerance(height, height * 0.1, height * 0.1),
     ))
+
+
+@pytest.fixture
+def chip_result(calc, chip_pkg) -> FootprintResult:
+    return calc.calculate(chip_pkg)
+
+
+@pytest.fixture
+def gullwing_result(calc, gullwing_pkg) -> FootprintResult:
+    return calc.calculate(gullwing_pkg)
