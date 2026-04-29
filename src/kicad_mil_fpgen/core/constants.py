@@ -190,3 +190,9 @@ SILKSCREEN_OFFSET: float = 0.1
 
 ANNULAR_RING_BASE: float = 0.15
 """Base annular ring added on top of density-specific annular_extra (mm)."""
+
+PASTE_REDUCTION_RATIO: float = 0.1
+"""Solder paste area reduction ratio for fine-pitch components (< 0.65mm pitch)."""
+
+PASTE_REDUCTION_RATIO: float = 0.1
+"""Solder paste area reduction ratio for fine-pitch components (< 0.65mm pitch)."""

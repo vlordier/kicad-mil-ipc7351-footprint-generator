@@ -17,7 +17,10 @@ from .base import FootprintFamily, FamilyMetadata
 
 
 class GullwingFamily(FootprintFamily):
-    """Gull-wing leaded SMD packages: SOIC, SOT, QFP, QFN, DFN, TSSOP, etc."""
+    """Gull-wing leaded SMD packages: SOIC, SOT, QFP, QFN, DFN, TSSOP, etc.
+
+    QFN packages optionally include a thermal pad under the body.
+    """
 
     metadata = FamilyMetadata(
         name="gullwing",
@@ -27,6 +30,8 @@ class GullwingFamily(FootprintFamily):
         calc_type=CalcType.GULLWING,
     )
 
+    _QFN_FAMILIES = {"qfn", "dfn"}
+
     @classmethod
     def get_factors(cls, density: str) -> GullwingFactors:
         try:
@@ -35,6 +40,10 @@ class GullwingFamily(FootprintFamily):
             dl = DensityLevel.B
         table = FAMILY_FACTORS.get(CalcType.GULLWING, {})
         return table.get(dl, table[DensityLevel.B])
+
+    @classmethod
+    def _is_qfn(cls, pkg: PackageDefinition) -> bool:
+        return pkg.family.lower().strip() in cls._QFN_FAMILIES
 
     @classmethod
     def calculate(cls, pkg: PackageDefinition, factors: FamilyFactors, result: FootprintResult) -> None:
@@ -74,9 +83,42 @@ class GullwingFamily(FootprintFamily):
             ))
             pad_num += 1
 
+        if cls._is_qfn(pkg):
+            cls._add_thermal_pad(pkg, factors, result, pad_num)
+
         _record(result, "gullwing_pad_width", "W = LW + 2S", lw, f.side, pad_width)
         _record(result, "gullwing_pad_height", "L = LL + Toe + Heel", ll, f.toe, f.heel, pad_height)
         result.notes.append(f"Gull-wing — {count} leads, pitch={pitch:.3f}, pad W={pad_width:.3f} H={pad_height:.3f}")
+
+    @classmethod
+    def _add_thermal_pad(
+        cls,
+        pkg: PackageDefinition,
+        factors: FamilyFactors,
+        result: FootprintResult,
+        next_pad_num: int,
+    ) -> None:
+        body = pkg.body
+        if body is None:
+            return
+
+        thermal_width = body.width.nominal * 0.7
+        thermal_height = body.length.nominal * 0.7
+        f = factors
+
+        result.pads.append(PadDimensions(
+            number=next_pad_num,
+            width=thermal_width,
+            height=thermal_height,
+            toe=f.toe * 0.5,
+            heel=f.heel * 0.5,
+            side=f.side * 0.5,
+            shape=PadShape.ROUNDED_RECTANGLE,
+            corner_radius=0.2,
+            position=PadPosition(x=0.0, y=0.0),
+            notes=["Thermal pad"],
+        ))
+        result.notes.append(f"  Thermal pad: {thermal_width:.3f} x {thermal_height:.3f} mm")
 
 
 def _record(result: FootprintResult, name: str, formula: str, *args) -> None:

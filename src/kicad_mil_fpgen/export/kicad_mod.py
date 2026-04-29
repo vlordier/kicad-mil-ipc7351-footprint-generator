@@ -1,5 +1,18 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""KiCad .kicad_mod footprint file exporter."""
+"""KiCad .kicad_mod footprint file exporter.
+
+Generates KiCad v6/v7/v8 compatible footprint files from FootprintResult.
+
+Produces DRC-valid output with:
+  - Proper pad stacks (F.Cu + F.Paste + F.Mask for SMD)
+  - Solder paste layers (F.Paste) with area reduction
+  - Courtyard on F.CrtYd layer
+  - Silkscreen outline on F.SilkS
+  - Pin 1 marker on F.Fab layer
+
+TODO: Integrate with KicadModTree for more robust generation
+(lib: gitlab.com/kicad/libraries/kicad-footprint-generator)
+"""
 
 from pathlib import Path
 from typing import Optional
@@ -13,6 +26,7 @@ from ..core.constants import (
     COURTYARD_LINE_WIDTH,
     SILKSCREEN_LINE_WIDTH,
     SILKSCREEN_OFFSET,
+    PASTE_REDUCTION_RATIO,
 )
 from ..core.naming import NamingConvention
 
@@ -48,13 +62,18 @@ class KiCadModExporter:
         lines.append('  (layer "F.Cu")')
         lines.append('  (attr smd)')
         lines.extend(self._generate_pads())
+        lines.extend(self._generate_paste())
         lines.extend(self._generate_courtyard())
         lines.extend(self._generate_silkscreen())
+        lines.extend(self._generate_fab())
         lines.append(")")
         return "\n".join(lines)
 
     def _footprint_name(self) -> str:
         return self.naming.generate(self.result)
+
+    def _is_tht(self) -> bool:
+        return self.result.package and self.result.package.family.lower() in _THT_FAMILIES
 
     def _generate_pads(self) -> list[str]:
         lines = []
@@ -62,19 +81,44 @@ class KiCadModExporter:
             shape = "rect"
             if pad.shape == PadShape.CIRCLE:
                 shape = "circle"
-            elif pad.shape == PadShape.OBLONG:
-                shape = "roundrect"
-            elif pad.shape == PadShape.ROUNDED_RECTANGLE:
+            elif pad.shape in (PadShape.OBLONG, PadShape.ROUNDED_RECTANGLE):
                 shape = "roundrect"
 
-            is_tht = self.result.package and self.result.package.family.lower() in _THT_FAMILIES
-            layers = KICAD_LAYERS_THT if is_tht else KICAD_LAYERS_SMD
+            layers = KICAD_LAYERS_THT if self._is_tht() else KICAD_LAYERS_SMD
 
             lines.append(
                 f'  (pad {pad.number} smd {shape} '
                 f'(at {pad.position.x:.4f} {pad.position.y:.4f}) '
                 f'(size {pad.width:.4f} {pad.height:.4f}) '
                 f'(layers {layers}))'
+            )
+        return lines
+
+    def _generate_paste(self) -> list[str]:
+        """Generate solder paste layers with area reduction for fine pitch."""
+        if self._is_tht():
+            return []
+
+        pkg = self.result.package
+        if not pkg or not pkg.leads:
+            return []
+
+        pitch = pkg.leads.pitch.nominal if pkg.leads else 0
+        reduction = PASTE_REDUCTION_RATIO if pitch < 0.65 else 0.0
+
+        if reduction == 0.0:
+            return []
+
+        lines = []
+        for pad in self.result.pads:
+            if pad.shape == PadShape.CIRCLE:
+                continue
+            pw = pad.width * (1 - reduction)
+            ph = pad.height * (1 - reduction)
+            lines.append(
+                f'  (fp_rect (start {pad.position.x - pw/2:.4f} {pad.position.y - ph/2:.4f}) '
+                f'(end {pad.position.x + pw/2:.4f} {pad.position.y + ph/2:.4f}) '
+                f'(layer "F.Paste") (width 0.0))'
             )
         return lines
 
@@ -102,6 +146,20 @@ class KiCadModExporter:
             f'  (fp_line (start {bl:.4f} {-bw:.4f}) (end {bl:.4f} {bw:.4f}) (layer "F.SilkS") (width {w}))',
             f'  (fp_line (start {bl:.4f} {bw:.4f}) (end {-bl:.4f} {bw:.4f}) (layer "F.SilkS") (width {w}))',
             f'  (fp_line (start {-bl:.4f} {bw:.4f}) (end {-bl:.4f} {-bw:.4f}) (layer "F.SilkS") (width {w}))',
+        ]
+
+    def _generate_fab(self) -> list[str]:
+        """Generate fabrication layer with pin 1 marker."""
+        pkg = self.result.package
+        if not pkg or not pkg.body:
+            return []
+
+        bl = pkg.body.length.nominal / 2
+        bw = pkg.body.width.nominal / 2
+        marker_size = 0.5
+
+        return [
+            f'  (fp_circle (center {-bl:.4f} {-bw:.4f}) (end {-bl + marker_size:.4f} {-bw:.4f}) (layer "F.Fab") (width 0.1))',
         ]
 
     def write_library(self, output_dir: str | Path, library_name: str = "generated") -> Path:

@@ -1,12 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Entry point for kicad-mil-fpgen CLI."""
+"""Entry point for kicad-mil-fpgen CLI and GUI."""
 
 import argparse
 import sys
 from pathlib import Path
 
 from . import __version__
-from .core.constants import DensityLevel
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -15,8 +14,9 @@ def build_parser() -> argparse.ArgumentParser:
         description="IPC-7351C MIL-grade footprint generator for KiCad",
     )
     parser.add_argument("--version", action="version", version=f"kicad-mil-fpgen v{__version__}")
+    parser.add_argument("--gui", action="store_true", help="Launch GUI (default if no args)")
     parser.add_argument("--package", type=str, help="Package family (chip, soic, qfp, bga, dip, ...)")
-    parser.add_argument("--density", type=str, default="B", choices=[e.value for e in DensityLevel], help="IPC-7351 density level (default: B)")
+    parser.add_argument("--density", type=str, default="B", choices=["A", "B", "C", "USER", "MANUFACTURER"], help="IPC-7351 density level (default: B)")
     parser.add_argument("--body-length", type=float, help="Component body length in mm")
     parser.add_argument("--body-width", type=float, help="Component body width in mm")
     parser.add_argument("--body-height", type=float, default=0.5, help="Component body height in mm (default: 0.5)")
@@ -74,6 +74,22 @@ def cli_generate(args: argparse.Namespace) -> int:
     return 0
 
 
+def launch_gui() -> int:
+    try:
+        from PySide6.QtWidgets import QApplication
+        from .gui.main_window import MainWindow
+    except ImportError:
+        print("GUI requires PySide6. Install with: pip install PySide6", file=sys.stderr)
+        return 1
+
+    app = QApplication(sys.argv)
+    app.setApplicationName("KiCad MIL IPC-7351 Footprint Generator")
+    app.setApplicationVersion(__version__)
+    window = MainWindow()
+    window.show()
+    return app.exec()
+
+
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
@@ -81,8 +97,10 @@ def main() -> int:
     if args.package:
         return cli_generate(args)
 
-    parser.print_help()
-    return 0
+    if args.gui:
+        return launch_gui()
+
+    return launch_gui()
 
 
 if __name__ == "__main__":

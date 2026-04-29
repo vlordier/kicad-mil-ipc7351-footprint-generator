@@ -9,11 +9,11 @@ from .constants import (
     ChipFactors, GullwingFactors, BgaFactors, ThtFactors,
     FAMILY_TO_CALC_TYPE, FAMILY_FACTORS, FAMILY_FACTORS_DEFAULT_DENSITY,
     DENSITY_MULTIPLIERS, MIL_DERATING_PAD_INCREMENT, MIL_DERATING_COURTYARD_INCREMENT,
-    KICAD_LAYERS_SMD, KICAD_LAYERS_THT, ANNULAR_RING_BASE,
+    KICAD_LAYERS_SMD, KICAD_LAYERS_THT, ANNULAR_RING_BASE, PASTE_REDUCTION_RATIO,
 )
+from .registry import resolve_family, get_registered_families, get_known_names
 from .naming import NamingConvention
-from .registry import resolve_family, get_registered_families, get_known_names
-from .registry import resolve_family, get_registered_families, get_known_names
+from .validation import IPCValidator, ValidationIssue, Severity
 
 __all__ = [
     "PackageDefinition", "BodyDimensions", "LeadDimensions",
@@ -26,6 +26,8 @@ __all__ = [
     "ChipFactors", "GullwingFactors", "BgaFactors", "ThtFactors",
     "FAMILY_TO_CALC_TYPE", "FAMILY_FACTORS", "FAMILY_FACTORS_DEFAULT_DENSITY",
     "DENSITY_MULTIPLIERS", "MIL_DERATING_PAD_INCREMENT", "MIL_DERATING_COURTYARD_INCREMENT",
-    "KICAD_LAYERS_SMD", "KICAD_LAYERS_THT", "ANNULAR_RING_BASE",
+    "KICAD_LAYERS_SMD", "KICAD_LAYERS_THT", "ANNULAR_RING_BASE", "PASTE_REDUCTION_RATIO",
     "resolve_family", "get_registered_families", "get_known_names",
+    "NamingConvention",
+    "IPCValidator", "ValidationIssue", "Severity",
 ]
