@@ -110,6 +110,7 @@ class ConfigManager:
                     data = yaml.safe_load(f) or {}
                     merged = self._deep_merge(merged, data)
 
+        self._apply_env(merged)
         self._raw = merged
 
         # Parse profiles
@@ -148,6 +149,32 @@ class ConfigManager:
         }
         result.update(overrides)
         return result
+
+    @staticmethod
+    def _apply_env(merged: dict[str, Any]) -> None:
+        env_prefix = "KICAD_MIL_FPGEN_"
+        for key, val in os.environ.items():
+            if key.startswith(env_prefix):
+                config_key = key[len(env_prefix):].lower()
+                if config_key == "density":
+                    merged.setdefault("profiles", {})
+                    merged["profiles"].setdefault("env", {"density": val})
+                elif config_key == "mil_derating":
+                    merged.setdefault("profiles", {})
+                    merged["profiles"].setdefault("env", {"mil_derating": val.lower() in ("true", "1", "yes")})
+
+    @staticmethod
+    def _apply_env(merged: dict[str, Any]) -> None:
+        env_prefix = "KICAD_MIL_FPGEN_"
+        for key, val in os.environ.items():
+            if key.startswith(env_prefix):
+                config_key = key[len(env_prefix):].lower()
+                if config_key == "density":
+                    merged.setdefault("profiles", {})
+                    merged["profiles"].setdefault("env", {"density": val})
+                elif config_key == "mil_derating":
+                    merged.setdefault("profiles", {})
+                    merged["profiles"].setdefault("env", {"mil_derating": val.lower() in ("true", "1", "yes")})
 
     @staticmethod
     def _deep_merge(base: dict, override: dict) -> dict:

@@ -108,7 +108,16 @@ class ToleranceStack:
         return result
 
     def _worst_case(self) -> ToleranceStackResult:
-        return self._min_max()
+        result = ToleranceStackResult(method=self.method)
+        total_nominal = sum(t.nominal for t in self.tolerances)
+        total_plus = sum(t.plus for t in self.tolerances)
+        total_minus = sum(t.minus for t in self.tolerances)
+        result.nominal = total_nominal
+        result.min = total_nominal - total_minus
+        result.max = total_nominal + total_plus
+        result.minus = total_minus
+        result.plus = total_plus
+        return result
 
 
 class ToleranceEngine:

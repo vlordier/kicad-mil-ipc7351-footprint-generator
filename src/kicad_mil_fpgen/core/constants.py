@@ -178,7 +178,7 @@ DENSITY_MULTIPLIERS: dict[DensityLevel, float] = {
 # ---------------------------------------------------------------------------
 
 KICAD_LAYERS_SMD: str = '"F.Cu" "F.Paste" "F.Mask"'
-KICAD_LAYERS_THT: str = '"F.Cu" "F.Cu"'
+KICAD_LAYERS_THT: str = '"F.Cu" "B.Cu"'
 
 KICAD_FP_VERSION: str = "20240101"
 KICAD_GENERATOR_NAME: str = "kicad-mil-ipc7351"

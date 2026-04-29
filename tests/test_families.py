@@ -102,7 +102,7 @@ class TestBgaFamily:
                                 ball_diameter=Tolerance(0.5), ball_count=256)
         result = FootprintResult(package=pkg)
         BgaFamily.calculate(pkg, BgaFamily.get_factors("B"), result)
-        assert len(result.pads) == 1
+        assert len(result.pads) == 256
         assert result.pads[0].shape == PadShape.CIRCLE
 
     def test_calculate_without_ball_raises(self):

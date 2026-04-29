@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Property-based tests using Hypothesis — finds edge cases automatically."""
 
+import pytest
 from hypothesis import given, strategies as st, assume
 from hypothesis.extra.numpy import arrays
 
@@ -200,4 +201,3 @@ class TestInvalidInputProperties:
             self.calc.calculate(pkg)
 
 
-import pytest

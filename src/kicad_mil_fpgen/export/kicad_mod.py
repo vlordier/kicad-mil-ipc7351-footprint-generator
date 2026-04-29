@@ -60,6 +60,8 @@ class KiCadModExporter:
                 shape = "circle"
             elif pad.shape == PadShape.OBLONG:
                 shape = "roundrect"
+            elif pad.shape == PadShape.ROUNDED_RECTANGLE:
+                shape = "roundrect"
 
             is_tht = self.result.package and self.result.package.family.lower() in _THT_FAMILIES
             layers = KICAD_LAYERS_THT if is_tht else KICAD_LAYERS_SMD
