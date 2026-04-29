@@ -14,6 +14,7 @@ from ..core.ipc7351 import (
     ValidationError,
 )
 from .kicad_mod import KiCadModExporter
+from ..core.naming import NamingConvention
 
 
 @dataclass
@@ -34,6 +35,7 @@ class BatchImporter:
         self.output_dir = Path(output_dir)
         self.library_name = library_name
         self.calculator = FootprintCalculator()
+        self._naming = NamingConvention()
 
     def from_csv(self, csv_path: str | Path) -> BatchResult:
         """Read a CSV file and generate footprints for each row.
@@ -61,7 +63,7 @@ class BatchImporter:
                     if mil:
                         fp_result = self.calculator.apply_mil_derating(fp_result)
 
-                    KiCadModExporter(fp_result).write_library(self.output_dir, self.library_name)
+                    KiCadModExporter(fp_result, naming=self._naming).write_library(self.output_dir, self.library_name)
                     result.succeeded += 1
                 except (ValidationError, ValueError, KeyError) as e:
                     result.failed += 1
@@ -92,7 +94,7 @@ class BatchImporter:
                 if mil:
                     fp_result = self.calculator.apply_mil_derating(fp_result)
 
-                KiCadModExporter(fp_result).write_library(self.output_dir, self.library_name)
+                KiCadModExporter(fp_result, naming=self._naming).write_library(self.output_dir, self.library_name)
                 result.succeeded += 1
             except (ValidationError, ValueError, KeyError) as e:
                 result.failed += 1

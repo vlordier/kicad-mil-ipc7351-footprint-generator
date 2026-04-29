@@ -11,6 +11,8 @@ from .constants import (
     DENSITY_MULTIPLIERS, MIL_DERATING_PAD_INCREMENT, MIL_DERATING_COURTYARD_INCREMENT,
     KICAD_LAYERS_SMD, KICAD_LAYERS_THT, ANNULAR_RING_BASE,
 )
+from .naming import NamingConvention
+from .registry import resolve_family, get_registered_families, get_known_names
 from .registry import resolve_family, get_registered_families, get_known_names
 
 __all__ = [

@@ -2,6 +2,7 @@
 """KiCad .kicad_mod footprint file exporter."""
 
 from pathlib import Path
+from typing import Optional
 
 from ..core.ipc7351 import FootprintResult, PadShape
 from ..core.constants import (
@@ -13,6 +14,7 @@ from ..core.constants import (
     SILKSCREEN_LINE_WIDTH,
     SILKSCREEN_OFFSET,
 )
+from ..core.naming import NamingConvention
 
 _THT_FAMILIES = {"dip", "sip", "tht", "axial", "radial"}
 
@@ -20,8 +22,13 @@ _THT_FAMILIES = {"dip", "sip", "tht", "axial", "radial"}
 class KiCadModExporter:
     """Export a FootprintResult to KiCad .kicad_mod format."""
 
-    def __init__(self, result: FootprintResult):
+    def __init__(
+        self,
+        result: FootprintResult,
+        naming: Optional[NamingConvention] = None,
+    ) -> None:
         self.result = result
+        self.naming = naming or NamingConvention()
 
     def export(self, output_path: str | Path) -> None:
         Path(output_path).write_text(self._generate())
@@ -47,10 +54,7 @@ class KiCadModExporter:
         return "\n".join(lines)
 
     def _footprint_name(self) -> str:
-        pkg = self.result.package
-        if pkg and pkg.body:
-            return f"{pkg.family}_{pkg.body.length.nominal:.2f}x{pkg.body.width.nominal:.2f}_{self.result.density}"
-        return "unnamed_footprint"
+        return self.naming.generate(self.result)
 
     def _generate_pads(self) -> list[str]:
         lines = []

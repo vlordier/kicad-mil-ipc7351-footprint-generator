@@ -25,6 +25,7 @@ from .constants import (
     CalcType, MIL_DERATING_PAD_INCREMENT, MIL_DERATING_COURTYARD_INCREMENT,
 )
 from ..config.manager import ConfigManager, ProfileConfig
+from .naming import NamingConvention
 
 
 class FootprintCalculator:
@@ -53,6 +54,16 @@ class FootprintCalculator:
                 "annular_ring_extra": kwargs.get("annular_ring_extra", 0.0),
                 "generate_report": kwargs.get("generate_report", False),
             }
+
+        nc = self._config.naming
+        self.naming = NamingConvention(
+            style=nc.style,
+            prefix=self._profile.get("naming_prefix", ""),
+            suffix=self._profile.get("naming_suffix", ""),
+            include_density=nc.include_density,
+            include_version=nc.include_version,
+            separator=nc.separator,
+        )
 
     @property
     def profile(self) -> dict[str, Any]:
