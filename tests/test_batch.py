@@ -124,6 +124,52 @@ def test_batch_result_errors():
     assert r.errors[0][0] == 1
 
 
+def test_row_to_package_chip():
+    """_row_to_package parses chip rows correctly."""
+    from kicad_mil_fpgen.export.batch_import import BatchImporter
+    row = {"family": "chip", "length": "3.2", "width": "1.6", "height": "0.55"}
+    pkg = BatchImporter._row_to_package(row)
+    assert pkg.family == "chip"
+    assert pkg.body is not None
+    assert pkg.body.length.nominal == 3.2
+    assert pkg.body.width.nominal == 1.6
+    assert pkg.body.height.nominal == 0.55
+    assert pkg.leads is None
+
+
+def test_row_to_package_gullwing():
+    """_row_to_package parses gullwing rows correctly."""
+    from kicad_mil_fpgen.export.batch_import import BatchImporter
+    row = {"family": "soic", "length": "5.0", "width": "4.0",
+           "lead_count": "8", "lead_pitch": "1.27", "lead_width": "0.4", "lead_length": "1.0"}
+    pkg = BatchImporter._row_to_package(row)
+    assert pkg.family == "soic"
+    assert pkg.leads is not None
+    assert pkg.leads.count == 8
+    assert pkg.leads.pitch.nominal == 1.27
+    assert pkg.leads.width.nominal == 0.4
+    assert pkg.leads.length.nominal == 1.0
+
+
+def test_row_to_package_column_aliases():
+    """_row_to_package accepts alternative column names."""
+    from kicad_mil_fpgen.export.batch_import import BatchImporter
+    row = {"family": "chip", "body_length": "3.2", "body_width": "1.6", "body_height": "0.55"}
+    pkg = BatchImporter._row_to_package(row)
+    assert pkg.body.length.nominal == 3.2
+    assert pkg.body.width.nominal == 1.6
+    assert pkg.body.height.nominal == 0.55
+
+
+def test_row_to_package_defaults():
+    """_row_to_package fills sensible defaults for missing fields."""
+    from kicad_mil_fpgen.export.batch_import import BatchImporter
+    row = {"family": "chip", "length": "3.2", "width": "1.6"}
+    pkg = BatchImporter._row_to_package(row)
+    # Default body height should be 0.5
+    assert pkg.body.height.nominal == 0.5
+
+
 def test_csv_import_multiple_libraries():
     csv_content = (
         "reference,value,family,length,width\n"

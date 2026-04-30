@@ -303,6 +303,55 @@ def test_tht_footprint(calc):
     assert len(result.pads) >= 8
 
 
+def test_qfn_thermal_pad(calc):
+    """QFN should include a thermal pad at the center."""
+    pkg = PackageDefinition(
+        family="qfn",
+        body=BodyDimensions(length=Tolerance(4.0), width=Tolerance(4.0), height=Tolerance(0.85)),
+        leads=LeadDimensions(width=Tolerance(0.3), length=Tolerance(0.5), pitch=Tolerance(0.5), count=24),
+    )
+    result = calc.calculate(pkg, density="B")
+    thermal_pads = [p for p in result.pads if "Thermal pad" in (p.notes or [])]
+    assert len(thermal_pads) == 1
+    tp = thermal_pads[0]
+    assert tp.position.x == 0.0
+    assert tp.position.y == 0.0
+    assert tp.shape == PadShape.ROUNDED_RECTANGLE
+
+
+def test_bga_grid_layout(calc):
+    """BGA pads should form a correct grid."""
+    pkg = PackageDefinition(
+        family="bga",
+        body=BodyDimensions(length=Tolerance(10.0), width=Tolerance(10.0), height=Tolerance(1.2)),
+        ball_diameter=Tolerance(0.5), ball_count=256,
+    )
+    result = calc.calculate(pkg, density="B")
+    # 256 balls should be 16x16
+    assert len(result.pads) == 256
+    xs = {p.position.x for p in result.pads}
+    ys = {p.position.y for p in result.pads}
+    assert len(xs) == 16
+    assert len(ys) == 16
+    # All pads should be at grid positions (no duplicates)
+    positions = {(p.position.x, p.position.y) for p in result.pads}
+    assert len(positions) == 256
+
+
+def test_bga_small_grid(calc):
+    """BGA with small ball count should still form a valid grid."""
+    for count in [4, 9, 16, 25]:
+        pkg = PackageDefinition(
+            family="bga",
+            body=BodyDimensions(length=Tolerance(5.0), width=Tolerance(5.0), height=Tolerance(1.0)),
+            ball_diameter=Tolerance(0.3), ball_count=count,
+        )
+        result = calc.calculate(pkg, density="B")
+        assert len(result.pads) == count
+        positions = {(p.position.x, p.position.y) for p in result.pads}
+        assert len(positions) == count
+
+
 def test_tht_pad_annular_ring(calc):
     pkg = PackageDefinition(
         family="dip", body=BodyDimensions(length=Tolerance(20.0), width=Tolerance(7.0), height=Tolerance(3.5)),

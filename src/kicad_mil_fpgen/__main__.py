@@ -38,7 +38,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def cli_generate(args: argparse.Namespace) -> int:
     from .core.ipc7351 import PackageDefinition, BodyDimensions, LeadDimensions, Tolerance, ValidationError
-    from .core.families import calculate, apply_mil_derating
+    from .core.calculator import FootprintCalculator
     from .export.kicad_mod import KiCadModExporter
 
     body = BodyDimensions(
@@ -57,13 +57,12 @@ def cli_generate(args: argparse.Namespace) -> int:
             length=Tolerance(args.lead_length, args.lead_length * LEAD_LENGTH_TOLERANCE_PCT, args.lead_length * LEAD_LENGTH_TOLERANCE_PCT),
             pitch=Tolerance(args.lead_pitch or DEFAULT_LEAD_PITCH_MM, 0.0, 0.0), count=args.lead_count,
         )
+    calc = FootprintCalculator(density=args.density, mil_derating=args.mil)
     try:
-        result = calculate(pkg, density=args.density)
+        result = calc.calculate(pkg)
     except ValidationError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
-    if args.mil:
-        result = apply_mil_derating(result)
     out = args.output or Path(f"{pkg.family}_{args.body_length:.2f}x{args.body_width:.2f}.kicad_mod")
     KiCadModExporter(result).export(out)
     print(f"Generated: {out}")
