@@ -4,7 +4,7 @@
 
 ![Python](https://img.shields.io/badge/Python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-GPLv3-blue.svg)
-![Tests](https://img.shields.io/badge/tests-142%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-151%20passing-brightgreen)
 
 ## The MIL part
 
@@ -60,7 +60,7 @@ kicad-mil-fpgen --batch parts.csv -o ./my_lib
 
 ```bash
 pip install -e ".[dev]"
-pytest tests/ -q    # 142 passed, validated against KiCad 10.0.1 pcbnew
+pytest tests/ -q    # 151 passed, validated against KiCad 10.0.1 pcbnew
 ```
 
 ## License
