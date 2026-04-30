@@ -7,6 +7,13 @@ from pathlib import Path
 
 from . import __version__
 
+from .core.constants import (
+    DEFAULT_BODY_HEIGHT_MM, DEFAULT_LEAD_WIDTH_MM, DEFAULT_LEAD_LENGTH_MM,
+    DEFAULT_LEAD_PITCH_MM,
+    BODY_LENGTH_TOLERANCE_PCT, BODY_WIDTH_TOLERANCE_PCT, BODY_HEIGHT_TOLERANCE_PCT,
+    LEAD_WIDTH_TOLERANCE_PCT, LEAD_LENGTH_TOLERANCE_PCT,
+)
+
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="kicad-mil-fpgen", description="IPC-7351C MIL-grade footprint generator for KiCad")
@@ -15,11 +22,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--density", type=str, default="B", choices=["A", "B", "C"], help="Density: A (MIL preferred), B (nominal), C (least)")
     p.add_argument("--body-length", type=float, required=True, help="Body length in mm")
     p.add_argument("--body-width", type=float, required=True, help="Body width in mm")
-    p.add_argument("--body-height", type=float, default=0.5, help="Body height in mm")
+    p.add_argument("--body-height", type=float, default=DEFAULT_BODY_HEIGHT_MM, help="Body height in mm")
     p.add_argument("--lead-count", type=int, help="Number of leads")
     p.add_argument("--lead-pitch", type=float, help="Lead pitch in mm")
-    p.add_argument("--lead-width", type=float, default=0.3, help="Lead width in mm")
-    p.add_argument("--lead-length", type=float, default=1.0, help="Lead length in mm")
+    p.add_argument("--lead-width", type=float, default=DEFAULT_LEAD_WIDTH_MM, help="Lead width in mm")
+    p.add_argument("--lead-length", type=float, default=DEFAULT_LEAD_LENGTH_MM, help="Lead length in mm")
     p.add_argument("--ball-diameter", type=float, help="BGA ball diameter in mm")
     p.add_argument("--ball-count", type=int, help="BGA ball count")
     p.add_argument("--output", "-o", type=Path, help="Output .kicad_mod path")
@@ -34,18 +41,22 @@ def cli_generate(args: argparse.Namespace) -> int:
     from .core.families import calculate, apply_mil_derating
     from .export.kicad_mod import KiCadModExporter
 
+    body = BodyDimensions(
+        length=Tolerance(args.body_length, args.body_length * BODY_LENGTH_TOLERANCE_PCT, args.body_length * BODY_LENGTH_TOLERANCE_PCT),
+        width=Tolerance(args.body_width, args.body_width * BODY_WIDTH_TOLERANCE_PCT, args.body_width * BODY_WIDTH_TOLERANCE_PCT),
+        height=Tolerance(args.body_height, args.body_height * BODY_HEIGHT_TOLERANCE_PCT, args.body_height * BODY_HEIGHT_TOLERANCE_PCT),
+    )
     pkg = PackageDefinition(
-        family=args.package,
-        body=BodyDimensions(length=Tolerance(args.body_length, args.body_length * 0.05, args.body_length * 0.05),
-                            width=Tolerance(args.body_width, args.body_width * 0.05, args.body_width * 0.05),
-                            height=Tolerance(args.body_height, args.body_height * 0.1, args.body_height * 0.1)),
+        family=args.package, body=body,
         ball_diameter=Tolerance(args.ball_diameter, 0.0, 0.0) if args.ball_diameter else None,
         ball_count=args.ball_count or 0,
     )
     if args.lead_count:
-        pkg.leads = LeadDimensions(width=Tolerance(args.lead_width, args.lead_width * 0.1, args.lead_width * 0.1),
-                                   length=Tolerance(args.lead_length, args.lead_length * 0.1, args.lead_length * 0.1),
-                                   pitch=Tolerance(args.lead_pitch or 1.27, 0.0, 0.0), count=args.lead_count)
+        pkg.leads = LeadDimensions(
+            width=Tolerance(args.lead_width, args.lead_width * LEAD_WIDTH_TOLERANCE_PCT, args.lead_width * LEAD_WIDTH_TOLERANCE_PCT),
+            length=Tolerance(args.lead_length, args.lead_length * LEAD_LENGTH_TOLERANCE_PCT, args.lead_length * LEAD_LENGTH_TOLERANCE_PCT),
+            pitch=Tolerance(args.lead_pitch or DEFAULT_LEAD_PITCH_MM, 0.0, 0.0), count=args.lead_count,
+        )
     try:
         result = calculate(pkg, density=args.density)
     except ValidationError as e:

@@ -182,6 +182,52 @@ def test_export_tht_layers():
         assert layer not in output
 
 
+def test_export_tht_attr():
+    """THT footprints should have (attr through_hole)."""
+    pkg = PackageDefinition(
+        family="dip",
+        body=BodyDimensions(length=Tolerance(20.0), width=Tolerance(7.0), height=Tolerance(3.5)),
+        leads=LeadDimensions(width=Tolerance(0.6), length=Tolerance(2.0), pitch=Tolerance(2.54), count=8),
+    )
+    calc = FootprintCalculator()
+    result = calc.calculate(pkg, density="B")
+    output = KiCadModExporter(result).to_string()
+    assert '(attr through_hole)' in output
+
+
+def test_export_tht_pad_type():
+    """THT pads should use 'thru_hole' as pad type."""
+    pkg = PackageDefinition(
+        family="dip",
+        body=BodyDimensions(length=Tolerance(20.0), width=Tolerance(7.0), height=Tolerance(3.5)),
+        leads=LeadDimensions(width=Tolerance(0.6), length=Tolerance(2.0), pitch=Tolerance(2.54), count=8),
+    )
+    calc = FootprintCalculator()
+    result = calc.calculate(pkg, density="B")
+    output = KiCadModExporter(result).to_string()
+    assert '(pad 1 thru_hole' in output
+
+
+def test_export_smd_attr():
+    """SMD footprints should have (attr smd)."""
+    calc = FootprintCalculator()
+    pkg = PackageDefinition(family="chip", body=BodyDimensions(
+        length=Tolerance(3.2), width=Tolerance(1.6), height=Tolerance(0.55)))
+    result = calc.calculate(pkg, density="B")
+    output = KiCadModExporter(result).to_string()
+    assert '(attr smd)' in output
+
+
+def test_export_smd_pad_type():
+    """SMD pads should use 'smd' as pad type."""
+    calc = FootprintCalculator()
+    pkg = PackageDefinition(family="chip", body=BodyDimensions(
+        length=Tolerance(3.2), width=Tolerance(1.6), height=Tolerance(0.55)))
+    result = calc.calculate(pkg, density="B")
+    output = KiCadModExporter(result).to_string()
+    assert '(pad 1 smd ' in output
+
+
 # ---------------------------------------------------------------------------
 # Export with all densities
 # ---------------------------------------------------------------------------

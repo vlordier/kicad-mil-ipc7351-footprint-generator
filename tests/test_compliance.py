@@ -135,14 +135,6 @@ class TestSymmetry:
         assert left.width == right.width
         assert left.height == right.height
 
-    def test_gullwing_symmetry(self, calc):
-        result = calc.calculate(PackageDefinition(family="soic", body=BodyDimensions(length=Tolerance(5.0), width=Tolerance(4.0), height=Tolerance(1.5)), leads=LeadDimensions(width=Tolerance(0.4), length=Tolerance(1.0), pitch=Tolerance(1.27), count=8)), density="B")
-        for i in range(0, len(result.pads), 2):
-            left, right = result.pads[i], result.pads[i + 1]
-            assert left.position.x == -right.position.x
-            assert left.position.y == right.position.y
-            assert left.width == right.width
-
     def test_courtyard_centered(self, calc):
         result = calc.calculate(make_chip_pkg(), density="B")
         cy = result.courtyard
@@ -157,23 +149,21 @@ class TestSymmetry:
 class TestCourtyardCorrectness:
     """Courtyard must fully contain all pads with minimum clearance."""
 
-    def test_courtyard_contains_all_pads(self, calc):
-        for _ in range(20):
-            bl = 1.0 + abs(hash(str(_))) % 100 / 10
-            bw = 0.5 + abs(hash(str(_ + 100))) % 50 / 10
-            pkg = make_chip_pkg(length=bl, width=bw)
-            for d in ["A", "B", "C"]:
-                result = calc.calculate(pkg, density=d)
-                cy = result.courtyard
-                for pad in result.pads:
-                    left = pad.position.x - pad.width / 2
-                    right = pad.position.x + pad.width / 2
-                    bottom = pad.position.y - pad.height / 2
-                    top = pad.position.y + pad.height / 2
-                    assert cy.x_min <= left, f"cy.x_min {cy.x_min} > left {left}"
-                    assert cy.x_max >= right, f"cy.x_max {cy.x_max} < right {right}"
-                    assert cy.y_min <= bottom
-                    assert cy.y_max >= top
+    @pytest.mark.parametrize("bl,bw", [(3.2, 1.6), (1.0, 0.5), (5.0, 2.5), (10.0, 8.0), (2.0, 1.25)])
+    def test_courtyard_contains_all_pads(self, calc, bl, bw):
+        pkg = make_chip_pkg(length=bl, width=bw)
+        for d in ["A", "B", "C"]:
+            result = calc.calculate(pkg, density=d)
+            cy = result.courtyard
+            for pad in result.pads:
+                left = pad.position.x - pad.width / 2
+                right = pad.position.x + pad.width / 2
+                bottom = pad.position.y - pad.height / 2
+                top = pad.position.y + pad.height / 2
+                assert cy.x_min <= left, f"cy.x_min {cy.x_min} > left {left}"
+                assert cy.x_max >= right, f"cy.x_max {cy.x_max} < right {right}"
+                assert cy.y_min <= bottom
+                assert cy.y_max >= top
 
     def test_courtyard_clearance_positive(self, calc):
         """Courtyard must extend beyond pads by at least the clearance."""

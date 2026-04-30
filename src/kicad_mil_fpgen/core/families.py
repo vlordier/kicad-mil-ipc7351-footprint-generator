@@ -8,6 +8,8 @@ import math
 
 from .constants import FAMILY_FACTORS, FAMILY_KEY_MAP, ANNULAR_RING_BASE
 from .constants import MIL_PAD_INCREMENT, MIL_COURTYARD_INCREMENT
+from .constants import THERMAL_PAD_RATIO, THERMAL_PAD_CORNER_RADIUS_MM
+from .constants import BGA_DEFAULT_PITCH_MM, BGA_PITCH_SCALE
 from .ipc7351 import (
     PackageDefinition, FootprintResult, PadDimensions, PadPosition, PadShape,
     Courtyard, FootprintError, ValidationError,
@@ -15,17 +17,20 @@ from .ipc7351 import (
 
 
 def _get_factors(family: str, density: str) -> dict:
+    """Look up IPC-7351C density factors for a package family."""
     key = FAMILY_KEY_MAP.get(family.lower().strip(), "chip")
     table = FAMILY_FACTORS.get(key, FAMILY_FACTORS["chip"])
     return table.get(density.upper(), table.get("B", table["B"]))
 
 
 def _record(result: FootprintResult, name: str, formula: str, *args) -> None:
+    """Record a formula with evaluated values for audit trail."""
     detail = f"{formula} = {[f'{a:.4f}' if isinstance(a, float) else a for a in args]}"
     result.formulas_used[name] = detail
 
 
 def _calc_courtyard(pkg: PackageDefinition, factors: dict, result: FootprintResult) -> None:
+    """Calculate courtyard as pad extent plus density-dependent clearance."""
     cy_exp = factors.get("courtyard", 0.25)
     if result.pads:
         xs, ys = [], []
@@ -47,6 +52,7 @@ def _calc_courtyard(pkg: PackageDefinition, factors: dict, result: FootprintResu
 
 
 def _calc_chip(pkg: PackageDefinition, factors: dict, result: FootprintResult) -> None:
+    """2-pad chip footprint per IPC-7351C: pad_width = BW + 2*side, pad_height = BL + toe + heel."""
     body = pkg.body
     if body is None:
         raise FootprintError("Body required for chip")
@@ -65,6 +71,10 @@ def _calc_chip(pkg: PackageDefinition, factors: dict, result: FootprintResult) -
 
 
 def _calc_gullwing(pkg: PackageDefinition, factors: dict, result: FootprintResult) -> None:
+    """Gull-wing footprint (SOIC, SO, TSSOP, QFN, DFN) — pads on left/right sides only.
+
+    QFN/DFN get an additional thermal pad. QFP is handled separately by _calc_qfp.
+    """
     body, leads = pkg.body, pkg.leads
     if body is None or leads is None:
         raise FootprintError("Body and leads required for gullwing")
@@ -74,23 +84,25 @@ def _calc_gullwing(pkg: PackageDefinition, factors: dict, result: FootprintResul
     pw = lw + 2 * f["side"]
     ph = ll + f["toe"] + f["heel"]
     pps = count // 2
+    if count % 2 != 0:
+        result.warnings.append(f"Odd lead count ({count}) — one lead per side dropped")
     span = (pps - 1) * pitch
-    overhang = (ph - ll) / 2
+    pad_extension = (ph - ll) / 2
     pn = 1
     for i in range(pps):
         y = -span / 2 + i * pitch
         result.pads.append(PadDimensions(number=pn, width=pw, height=ph, toe=f["toe"], heel=f["heel"], side=f["side"],
-                                          shape=PadShape.OBLONG, position=PadPosition(x=-(body.length.nominal / 2 + overhang), y=y)))
+                                          shape=PadShape.OBLONG, position=PadPosition(x=-(body.length.nominal / 2 + pad_extension), y=y)))
         pn += 1
         result.pads.append(PadDimensions(number=pn, width=pw, height=ph, toe=f["toe"], heel=f["heel"], side=f["side"],
-                                          shape=PadShape.OBLONG, position=PadPosition(x=body.length.nominal / 2 + overhang, y=y)))
+                                          shape=PadShape.OBLONG, position=PadPosition(x=body.length.nominal / 2 + pad_extension, y=y)))
         pn += 1
 
     if pkg.family.lower() in ("qfn", "dfn"):
-        tw = body.width.nominal * 0.7
-        th = body.length.nominal * 0.7
+        tw = body.width.nominal * THERMAL_PAD_RATIO
+        th = body.length.nominal * THERMAL_PAD_RATIO
         result.pads.append(PadDimensions(number=pn, width=tw, height=th, shape=PadShape.ROUNDED_RECTANGLE,
-                                          corner_radius=0.2, position=PadPosition(x=0.0, y=0.0), notes=["Thermal pad"]))
+                                          corner_radius=THERMAL_PAD_CORNER_RADIUS_MM, position=PadPosition(x=0.0, y=0.0), notes=["Thermal pad"]))
         result.notes.append(f"  Thermal pad: {tw:.3f} x {th:.3f} mm")
 
     _record(result, "gullwing_pad_width", "W = LW + 2S", lw, f["side"], pw)
@@ -98,19 +110,68 @@ def _calc_gullwing(pkg: PackageDefinition, factors: dict, result: FootprintResul
     result.notes.append(f"Gull-wing — {count} leads, pitch={pitch:.3f}, pad W={pw:.3f} H={ph:.3f}")
 
 
+def _calc_qfp(pkg: PackageDefinition, factors: dict, result: FootprintResult) -> None:
+    """QFP footprint — pads on all 4 sides."""
+    body, leads = pkg.body, pkg.leads
+    if body is None or leads is None:
+        raise FootprintError("Body and leads required for QFP")
+    f = factors
+    lw, ll = leads.width.nominal, leads.length.nominal
+    pitch, count = leads.pitch.nominal, leads.count
+    pw = lw + 2 * f["side"]
+    ph = ll + f["toe"] + f["heel"]
+    if count % 4 != 0:
+        result.warnings.append(f"QFP lead count ({count}) not divisible by 4 — "
+                               f"pads per side = {count // 4}")
+    pps = count // 4
+    span = (pps - 1) * pitch
+    pad_extension = (ph - ll) / 2
+    bl, bw = body.length.nominal, body.width.nominal
+    pn = 1
+    # Left side (vertical pads, rotated 0°)
+    for i in range(pps):
+        y = -span / 2 + i * pitch
+        result.pads.append(PadDimensions(number=pn, width=pw, height=ph, toe=f["toe"], heel=f["heel"], side=f["side"],
+                                          shape=PadShape.OBLONG, position=PadPosition(x=-(bl / 2 + pad_extension), y=y)))
+        pn += 1
+    # Right side
+    for i in range(pps):
+        y = -span / 2 + i * pitch
+        result.pads.append(PadDimensions(number=pn, width=pw, height=ph, toe=f["toe"], heel=f["heel"], side=f["side"],
+                                          shape=PadShape.OBLONG, position=PadPosition(x=bl / 2 + pad_extension, y=y)))
+        pn += 1
+    # Top side (horizontal pads, rotated 90°)
+    for i in range(pps):
+        x = -span / 2 + i * pitch
+        result.pads.append(PadDimensions(number=pn, width=pw, height=ph, toe=f["toe"], heel=f["heel"], side=f["side"],
+                                          shape=PadShape.OBLONG, position=PadPosition(x=x, y=bw / 2 + pad_extension, rotation=90.0)))
+        pn += 1
+    # Bottom side
+    for i in range(pps):
+        x = -span / 2 + i * pitch
+        result.pads.append(PadDimensions(number=pn, width=pw, height=ph, toe=f["toe"], heel=f["heel"], side=f["side"],
+                                          shape=PadShape.OBLONG, position=PadPosition(x=x, y=-(bw / 2 + pad_extension), rotation=90.0)))
+        pn += 1
+
+    _record(result, "qfp_pad_width", "W = LW + 2S", lw, f["side"], pw)
+    _record(result, "qfp_pad_height", "L = LL + Toe + Heel", ll, f["toe"], f["heel"], ph)
+    result.notes.append(f"QFP — {count} leads, pitch={pitch:.3f}, pad W={pw:.3f} H={ph:.3f}")
+
+
 def _calc_bga(pkg: PackageDefinition, factors: dict, result: FootprintResult) -> None:
+    """BGA footprint — circular pads in a grid."""
     if pkg.ball_diameter is None:
         raise FootprintError("Ball diameter required for BGA")
     bd = pkg.ball_diameter.nominal
-    pd = bd * factors.get("nsmd_ratio", 0.85)
+    pd = bd * factors.get("nsmd_ratio", BGA_PITCH_SCALE)
     n = max(pkg.ball_count, 1)
     side = int(math.ceil(math.sqrt(n)))
     rows = cols = side
     while rows * cols < n:
         rows += 1 if rows <= cols else cols + 1
-    pitch = 0.75
+    pitch = BGA_DEFAULT_PITCH_MM
     if pkg.body and pkg.body.length.nominal > 0 and pkg.body.width.nominal > 0:
-        pitch = math.sqrt(pkg.body.length.nominal * pkg.body.width.nominal / n) * 0.85
+        pitch = math.sqrt(pkg.body.length.nominal * pkg.body.width.nominal / n) * BGA_PITCH_SCALE
 
     xs = -(cols - 1) * pitch / 2
     ys = -(rows - 1) * pitch / 2
@@ -126,6 +187,7 @@ def _calc_bga(pkg: PackageDefinition, factors: dict, result: FootprintResult) ->
 
 
 def _calc_tht(pkg: PackageDefinition, factors: dict, result: FootprintResult) -> None:
+    """Through-hole footprint — DIP or single-row (SIP/axial/radial)."""
     body, leads = pkg.body, pkg.leads
     if body is None or leads is None:
         raise FootprintError("Body and leads required for THT")
@@ -148,16 +210,18 @@ def _calc_tht(pkg: PackageDefinition, factors: dict, result: FootprintResult) ->
     result.notes.append(f"THT — lead dia={ld:.3f}, pad dia={pd:.3f}")
 
 
-# Dispatch table
+# Dispatch table: (calc_fn, needs_leads, needs_balls)
 FAMILY_DISPATCH: dict[str, tuple] = {
     "chip": (_calc_chip, False, False),
     "gullwing": (_calc_gullwing, True, False),
+    "qfp": (_calc_qfp, True, False),
     "bga": (_calc_bga, False, True),
     "tht": (_calc_tht, True, False),
 }
 
 
 def calculate(pkg: PackageDefinition, density: str = "B") -> FootprintResult:
+    """Calculate a footprint for the given package definition."""
     pkg.validate()
     factors = _get_factors(pkg.family, density)
     key = FAMILY_KEY_MAP.get(pkg.family.lower().strip(), "chip")
@@ -177,6 +241,7 @@ def calculate(pkg: PackageDefinition, density: str = "B") -> FootprintResult:
 
 
 def apply_mil_derating(result: FootprintResult) -> FootprintResult:
+    """Return a deep copy with MIL derating applied (+0.05mm pads, +0.1mm courtyard)."""
     mil = copy.deepcopy(result)
     for pad in mil.pads:
         pad.width += MIL_PAD_INCREMENT

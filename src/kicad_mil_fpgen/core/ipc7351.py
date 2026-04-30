@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
-from .tolerances import Tolerance, ToleranceStackResult
+from .tolerances import Tolerance
 from .padstack import PadShape
 from .constants import FAMILY_KEY_MAP
 
@@ -141,11 +141,8 @@ class FootprintResult:
     courtyard: Optional[Courtyard] = None
     density: str = "B"
     ipc_version: str = "C"
-    tolerance_results: list[ToleranceStackResult] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     formulas_used: dict[str, str] = field(default_factory=dict)
-    all_inputs: dict = field(default_factory=dict)
-    all_intermediates: dict = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
 
     @property

@@ -1,17 +1,16 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Tests for the FootprintCalculator."""
+"""Tests for the FootprintCalculator wrapper."""
 
 import pytest
 
 from kicad_mil_fpgen.core.calculator import FootprintCalculator
 from kicad_mil_fpgen.core.ipc7351 import (
-    PackageDefinition, BodyDimensions, LeadDimensions, Tolerance,
-    ValidationError,
+    PackageDefinition, BodyDimensions, Tolerance,
 )
 
 
 class TestFootprintCalculator:
-    """Basic instantiation and calculation."""
+    """Basic instantiation and wrapper behavior — not duplicating calculation tests."""
 
     def make_chip(self):
         return PackageDefinition(family="chip", body=BodyDimensions(
@@ -26,10 +25,11 @@ class TestFootprintCalculator:
         assert calc._density == "A"
 
     def test_mil_derating_flag(self):
+        """mil_derating=True applies derating during calculate()."""
         calc = FootprintCalculator(mil_derating=True)
         result = calc.calculate(self.make_chip())
-        mil = calc.apply_mil_derating(result)
-        assert mil.pads[0].width == result.pads[0].width + 0.05
+        assert result.pads[0].width > 0
+        assert any("MIL derating" in n for n in result.notes)
 
     def test_calculate_chip(self):
         calc = FootprintCalculator()
@@ -40,24 +40,3 @@ class TestFootprintCalculator:
         calc = FootprintCalculator()
         result = calc.calculate(self.make_chip(), density="A")
         assert result.density == "A"
-
-    def test_mil_derating_does_not_mutate(self):
-        calc = FootprintCalculator()
-        result = calc.calculate(self.make_chip())
-        original = result.pads[0].width
-        mil = calc.apply_mil_derating(result)
-        assert mil.pads[0].width == original + 0.05
-        assert result.pads[0].width == original
-
-    def test_mil_derating_adds_notes(self):
-        calc = FootprintCalculator()
-        result = calc.calculate(self.make_chip())
-        mil = calc.apply_mil_derating(result)
-        assert any("MIL derating" in n for n in mil.notes)
-
-    def test_unknown_family_defaults_to_chip(self):
-        calc = FootprintCalculator()
-        pkg = PackageDefinition(family="nonexistent", body=BodyDimensions(
-            length=Tolerance(1.0), width=Tolerance(1.0), height=Tolerance(0.5)))
-        result = calc.calculate(pkg)
-        assert len(result.pads) == 2

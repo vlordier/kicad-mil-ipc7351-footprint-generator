@@ -162,17 +162,11 @@ def test_cli_generate_bga():
         assert out.exists()
 
 
-def test_main_help():
-    """main() with --help should print help and return 0."""
-    import sys, io
-    old_argv = sys.argv
-    old_stdout = sys.stdout
-    sys.argv = ["kicad-mil-fpgen", "--help"]
-    sys.stdout = io.StringIO()
-    try:
-        from kicad_mil_fpgen.__main__ import main
-        with pytest.raises(SystemExit):
-            main()
-    finally:
-        sys.argv = old_argv
-        sys.stdout = old_stdout
+def test_main_help(capsys, monkeypatch):
+    """main() with --help should print help and exit."""
+    monkeypatch.setattr("sys.argv", ["kicad-mil-fpgen", "--help"])
+    from kicad_mil_fpgen.__main__ import main
+    with pytest.raises(SystemExit):
+        main()
+    captured = capsys.readouterr()
+    assert "usage" in captured.out
